@@ -7,11 +7,11 @@
 入口参考 [Script-Hub](https://github.com/Script-Hub-Org/Script-Hub)。用户只添加一份入口重写；静态托管仅用于提供首次安装与更新资源，没有运行时服务器。
 
 ```text
-静态托管：qinglong-pusher.conf + qx/local.js + qx/capture.js + qx/backend.js
+静态托管：qinglong-pusher.conf + qx/local.js + qx/capture.js
   └─ QX 拦截 https://qlpush.com
        ├─ 页面与 API → QX preferences
        ├─ /profiles/<app-id>.conf → 兼容旧订阅
-       └─ QX http_backend 127.0.0.1:9999/qinglong-pusher/scripts/<app-id>.js
+       └─ HTTP qlpush.com/scripts/<app-id>.js
           → 规则头部 + 独立 App 抓取脚本
                                       ↓
                               直接同步青龙 Open API
@@ -91,6 +91,7 @@ npm start
 
 测试包括 manifest/PNG 校验、缓存路由隔离，以及浏览器断网加载与编辑禁用。iOS 安装验收仍需真实设备。
 
-`src/quantumult/backend.js` 是仅提供 JS 的独立后端，不提供控制台 API。构建将其与共享校验、抓取源打包到 `qx/backend.js`，同一入口 conf 声明 `[http_backend]`。旧 HTTPS JS 路由兼容手动访问，新的导入和头部执行地址只使用 loopback。
 
 PWA 构建先根据界面源文件计算版本号，将版本注入 `pwa.js`，再为最终页面资源生成 SHA-256 清单并注入 Service Worker。安装先下载并验证所有白名单资源，验证失败不写新版缓存；安装成功后等待用户确认激活。测试覆盖错误响应、资源版本错配、离线、跨窗口刷新保护与激活超时重试。版本清单不包含 API、应用配置、认证或捕获值。
+
+参考 [Script Hub QX 入口](https://github.com/Script-Hub-Org/Script-Hub/blob/main/modules/script-hub.qx.conf)：转换资源由 `script-echo-response` 应答，不依赖本地后端。本站 HTTP JS 规则在 HTTP 跳转前匹配；认证和写入 API 只接受 HTTPS。本机路由测试不能证明 QX 自身资源下载一定经过该规则。

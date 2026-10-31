@@ -26,9 +26,7 @@
 https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglong-pusher.conf
 ```
 
-同一份 conf 已包含 `[rewrite_local]`、`[mitm]` 和 `[http_backend]`。启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。
-
-**本地脚本服务：**确认 QX 已加载 conf 中的 `[http_backend]`。若通过「重写引用」添加后未加载该段，请将其中的后端配置行合并到 QX 主配置的 `[http_backend]` 下；不要用本项目 conf 覆盖完整主配置。应用 JS 从 `http://127.0.0.1:9999/qinglong-pusher/scripts/…` 下载，不依赖 `qlpush.com` 下载请求被重写。
+启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。无需配置本地后端。应用 JS 使用 HTTP 地址，由入口重写直接返回；控制台继续使用 HTTPS。
 
 保持 QX 开启，在 iPhone Safari 中访问 **[https://qlpush.com/](https://qlpush.com/)**，进入配置页面。
 

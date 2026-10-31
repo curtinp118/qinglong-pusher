@@ -15,7 +15,6 @@ export async function publish(baseURL, output) {
   await writeFile(resolve(output, 'qinglong-pusher.conf'), bootstrap(address));
   await writeFile(resolve(output, 'qx/local.js'), bundle.local);
   await writeFile(resolve(output, 'qx/capture.js'), bundle.capture);
-  await writeFile(resolve(output, 'qx/backend.js'), bundle.backend);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

@@ -13,7 +13,6 @@ export async function assets(baseURL) {
   files['/pwa.js'][0] = pwa.replace('__PWA_VERSION__', version);
   const hashes = Object.fromEntries(Object.entries(files).map(([path, [body]]) => [path, createHash('sha256').update(body).digest('hex')]));
   files['/sw.js'] = [worker.replace('__PWA_VERSION__', version).replace('__SHELL_HASHES__', JSON.stringify(hashes)), 'text/javascript'];
-  const backend = await read('src/quantumult/backend.js');
   const captureSource = core + '\n' + capture;
-  return { files, backend: 'const QP_CAPTURE_SOURCE = ' + JSON.stringify(captureSource) + ';\n' + core + '\n' + backend, local: 'const QP_BASE = ' + JSON.stringify(baseURL) + ';\nconst QP_ASSETS = ' + JSON.stringify(files) + ';\nconst QP_CAPTURE_SOURCE = ' + JSON.stringify(captureSource) + ';\n' + core + '\n' + local, capture: captureSource };
+  return { files, local: 'const QP_BASE = ' + JSON.stringify(baseURL) + ';\nconst QP_ASSETS = ' + JSON.stringify(files) + ';\nconst QP_CAPTURE_SOURCE = ' + JSON.stringify(captureSource) + ';\n' + core + '\n' + local, capture: captureSource };
 }

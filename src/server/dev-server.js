@@ -15,7 +15,6 @@ export async function createServer({ baseURL = 'http://localhost:8787', rateLimi
   const bundle = await assets(base);
   const files = new Map(Object.entries(bundle.files));
   files.set('/qx/local.js', [bundle.local, 'text/javascript']);
-  files.set('/qx/backend.js', [bundle.backend, 'text/javascript']);
   files.set('/qx/capture.js', [bundle.capture, 'text/javascript']);
   files.set('/qinglong-pusher.conf', [bootstrap(base), 'text/plain']);
   const buckets = new Map();

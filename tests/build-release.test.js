@@ -12,11 +12,8 @@ test('static release contains a complete local console without a running server'
     const conf = await readFile(directory + '/qinglong-pusher.conf', 'utf8');
     const script = await readFile(directory + '/qx/local.js', 'utf8');
     const capture = await readFile(directory + '/qx/capture.js', 'utf8');
-    const backend = await readFile(directory + '/qx/backend.js', 'utf8');
-    assert.doesNotThrow(() => new vm.Script(backend));
-    assert.ok(conf.includes('[http_backend]\nhttps://static.example/repo/main/release/qx/backend.js, tag=qinglong-pusher, path=^/qinglong-pusher/scripts/, enabled=true'));
-    assert.ok(conf.includes('[rewrite_local]'));
-    assert.ok(conf.includes('[mitm]\nhostname = qlpush.com'));
+    assert.ok(!conf.includes('[http_backend]'));
+    assert.ok(conf.includes('hostname = qlpush.com'));
     assert.doesNotThrow(() => new vm.Script(capture));
     assert.ok(!capture.startsWith('const QP_PROFILE_ID'));
     assert.ok(conf.includes('https://static.example/repo/main/release/qx/local.js'));

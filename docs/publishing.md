@@ -5,7 +5,7 @@
 ## 用户安装
 
 1. 将本仓库发布的 [`qinglong-pusher.conf`](https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglong-pusher.conf) 地址添加到 QX 重写引用。
-2. 同一 conf 含 `[http_backend]`；确认 QX 已加载该段，若重写引用未加载，则将该段配置行合并到主配置同名段下，不要覆盖整份主配置。启用重写与 MitM，安装并信任 QX 证书。
+2. 启用重写与 MitM，安装并信任 QX 证书；不需要 `[http_backend]`。
 3. 在开启 QX 的 iPhone 上访问 [https://qlpush.com/](https://qlpush.com/)。
 
 无需安装 Node.js、启动服务、部署容器或配置 DNS。入口脚本包含页面、API、配置生成和抓取脚本源码，均在 QX 中执行。青龙认证在本地控制台「设置 → 青龙面板」独立配置；[详细配置](usage.md)。
@@ -31,12 +31,11 @@ release/
   qinglong-pusher.conf
   qx/local.js
   qx/capture.js
-  qx/backend.js
 ```
 
-把四个文件按此目录结构上传到所指定的地址，用户只添加其中的 `qinglong-pusher.conf`。入口文件已引用完整静态脚本 URL，不需要后端 API 或动态路由。可传第二个参数指定输出目录；`release/` 纳入版本控制；审核后使用 `git add release/qinglong-pusher.conf release/qx/local.js release/qx/capture.js release/qx/backend.js` 添加四个文件，发布到 `main` 分支。每次修改页面、共享逻辑或 QX 脚本后，都应重新构建并同步提交发布文件。不要上传调试文件或凭据。
+把三个文件按此目录结构上传到所指定的地址，用户只添加其中的 `qinglong-pusher.conf`。入口文件已引用完整静态脚本 URL，不需要后端 API 或动态路由。可传第二个参数指定输出目录；`release/` 纳入版本控制；审核后使用 `git add release/qinglong-pusher.conf release/qx/local.js release/qx/capture.js` 添加三个文件，发布到 `main` 分支。每次修改页面、共享逻辑或 QX 脚本后，都应重新构建并同步提交发布文件。不要上传调试文件或凭据。
 
-默认分支为 `main`，用户直接订阅仓库中的发布文件。发布后检查 `.conf`、`qx/local.js`、`qx/capture.js`、`qx/backend.js` 四个 Raw 地址均可下载。构建不会配置 Git remote，也不会自动上传、提交或推送。
+默认分支为 `main`，用户直接订阅仓库中的发布文件。发布后检查 `.conf`、`qx/local.js`、`qx/capture.js` 三个 Raw 地址均可下载。构建不会配置 Git remote，也不会自动上传、提交或推送。
 
 页面更新后重新打包并上传静态脚本，用户刷新入口资源及其脚本缓存。入口需保持启用；各 App 订阅和抓取 JS 依赖它在本机响应。
 
@@ -50,4 +49,4 @@ npm start
 
 `HOST`、`PORT`、`PUBLIC_BASE_URL` 只影响开发预览服务。默认 `127.0.0.1:8787`，公共 origin 默认 `http://localhost:8787`；不支持子路径。通过与所设 origin 一致的地址打开页面，避免同源保护拒绝请求。
 
-应用导入及规则执行的 JS 下载使用 QX 官方 `http_backend` 的本机 9999 端口。页面入口仍使用 HTTPS 重写；仅切换分流到 DIRECT 不能代替启用后端。发布后更新入口及后端脚本缓存，再重新导入应用，移除旧的 qlpush.com 应用资源。PWA 热更新只管理界面缓存，不代替 QX 脚本更新。
+应用 JS 使用 `http://qlpush.com/scripts/<id>.js`，由专用 `script-echo-response` 规则直接返回，不重定向到 HTTPS。页面和认证 API 仍使用 HTTPS。更新入口及脚本缓存后重新导入应用，删除旧的 loopback 应用引用和本项目的后端配置行。仅删除本项目的后端条目，不影响其他服务。PWA 更新不代替 QX 脚本更新。

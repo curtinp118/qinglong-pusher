@@ -55,9 +55,11 @@
   }
   try {
     const request = $request;
-    if (!request.url.startsWith(origin + '/') && request.url !== origin) return send(400, { error: '无效的本地入口。' });
-    const path = request.url.slice(origin.length) || '/';
+    const httpScript = /^http:\/\/qlpush\.com(\/scripts\/[a-z0-9][a-z0-9-]{7,47}\.js)$/.exec(request.url);
+    if (!httpScript && !request.url.startsWith(origin + '/') && request.url !== origin) return send(400, { error: '无效的本地入口。' });
+    const path = httpScript ? httpScript[1] : request.url.slice(origin.length) || '/';
     const method = request.method || 'GET';
+    if (httpScript && method !== 'GET') return send(405, { error: '仅支持 GET。' });
     if (method === 'GET' && QP_ASSETS[path]) return send(200, QP_ASSETS[path][0], QP_ASSETS[path][1]);
     const script = /^\/scripts\/([a-z0-9][a-z0-9-]{7,47})\.js$/.exec(path);
     if (method === 'GET' && script) {

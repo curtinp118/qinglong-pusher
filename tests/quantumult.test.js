@@ -13,12 +13,23 @@ function prefs(initial = {}) {
 }
 function local(path, { method = 'GET', body, store = prefs(), headers = {} } = {}) {
   let result;
-  vm.runInNewContext(bundle.local, { $request: { url: 'https://qlpush.com' + path, method, body, headers }, $prefs: store, $done: data => { assert.equal(result, undefined); result = data; } });
+  vm.runInNewContext(bundle.local, { $request: { url: path.startsWith('http://') ? path : 'https://qlpush.com' + path, method, body, headers }, $prefs: store, $done: data => { assert.equal(result, undefined); result = data; } });
   return result;
 }
 const panelKey = globalThis.QPCore?.PANEL_KEY || 'qinglong_pusher_panel_v1';
 const panelFixture = { url: 'https://panel.example', clientId: 'fixture-client', clientSecret: 'synthetic-panel-secret' };
 const saveHeaders = { Origin: 'https://qlpush.com', 'Content-Type': 'application/json', 'X-QP-Local': '1' };
+test('HTTP app resource responds directly without redirect and does not expose console APIs', () => {
+  const store = prefs({ [key]: JSON.stringify([config]) });
+  const response = local('http://qlpush.com/scripts/app-first.js', { store });
+  assert.match(response.status, /200/);
+  assert.equal(response.headers.Location, undefined);
+  assert.equal(response.body, local('/scripts/app-first.js', { store }).body);
+  assert.ok(response.body.includes('url script-request-header http://qlpush.com/scripts/app-first.js'));
+  for (const path of ['/api/status', '/api/panel', '/', '/scripts/app-first.js?x=1']) assert.match(local('http://qlpush.com' + path, { store }).status, /400/);
+  assert.match(local('http://qlpush.com/scripts/app-first.js', { method: 'POST', store }).status, /405/);
+  assert.match(local('http://qlpush.com.evil/scripts/app-first.js', { store }).status, /400/);
+});
 test('QX serves UI/assets without fetch and exposes no auth values', () => {
   const store = prefs({ [panelKey]: JSON.stringify(panelFixture) });
   for (const path of ['/', '/style.css', '/app.js', '/core.js']) assert.match(local(path).status, /200/);
@@ -34,7 +45,7 @@ test('QX saves rules locally and fixed subscription reflects changes', () => {
   const source = JSON.parse(saved.body).js;
   assert.ok(source.startsWith('/*\nFirst\n'));
   assert.equal(local('/scripts/app-first.js', { store }).body, source);
-  assert.ok(source.includes('[rewrite_local]\n^https://api\\.example\\.com/user/.*$ url script-request-header http://127.0.0.1:9999/qinglong-pusher/scripts/app-first.js'));
+  assert.ok(source.includes('[rewrite_local]\n^https://api\\.example\\.com/user/.*$ url script-request-header http://qlpush.com/scripts/app-first.js'));
   assert.ok(source.includes('[MITM]\nhostname = api.example.com'));
   assert.doesNotThrow(() => new vm.Script(source));
   assert.deepEqual(JSON.parse(store.values.get(key)), [config]);
@@ -55,7 +66,7 @@ test('JS parser header preserves optional regex groups and safely escapes commen
   const item = { ...config, title: 'Metro */ App', rules: [{ ...rule, url: regex }] };
   const store = prefs();
   const saved = JSON.parse(local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify(item), store }).body);
-  assert.equal(saved.subscriptionUrl, 'http://127.0.0.1:9999/qinglong-pusher/scripts/app-first.js');
+  assert.equal(saved.subscriptionUrl, 'http://qlpush.com/scripts/app-first.js');
   const resource = JSON.parse(new URL(saved.importUrl).searchParams.get('remote-resource')).rewrite_remote[0];
   assert.equal(resource, saved.subscriptionUrl + ', tag=Metro */ App, opt-parser=true, enabled=true');
   assert.equal(saved.js, local('/scripts/app-first.js', { store }).body);
@@ -165,7 +176,7 @@ test('two App profiles have isolated subscriptions, edits, deletes and capture s
   assert.notEqual(firstResult.importUrl, secondResult.importUrl);
   const secondConf = local('/profiles/app-second.conf', { store }).body;
   const secondJS = local('/scripts/app-second.js', { store }).body;
-  assert.ok(secondConf.includes('http://127.0.0.1:9999/qinglong-pusher/scripts/app-second.js'));
+  assert.ok(secondConf.includes('http://qlpush.com/scripts/app-second.js'));
   assert.ok(!secondConf.includes('api.example.com'));
   save({ ...config, title: 'Renamed', rules: [{ ...rule, enabled: false }] });
   assert.equal(local('/profiles/app-second.conf', { store }).body, secondConf);
