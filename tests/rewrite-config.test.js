@@ -19,8 +19,8 @@ test('rejects unsafe patterns, secret fields, duplicate variables and invalid he
 });
 test('stable local subscription and separate bootstrap with request-body handling', () => {
   const data = links({ id: 'app-first', title: 'First', ...input }, 'https://assets.example');
-  assert.equal(data.subscriptionUrl, 'https://qlpush.com/profiles/app-first.conf');
-  assert.deepEqual(JSON.parse(new URL(data.importUrl).searchParams.get('remote-resource')).rewrite_remote, ['https://qlpush.com/profiles/app-first.conf, tag=QP-app-first, enabled=true']);
+  assert.equal(data.subscriptionUrl, 'https://qlpush.com/scripts/app-first.js');
+  assert.deepEqual(JSON.parse(new URL(data.importUrl).searchParams.get('remote-resource')).rewrite_remote, ['https://qlpush.com/scripts/app-first.js, tag=First, opt-parser=true, enabled=true']);
   const conf = bootstrap('https://assets.example');
   assert.ok(conf.indexOf('script-analyze-echo-response') < conf.indexOf(' url script-echo-response'));
   assert.ok(conf.includes('hostname = qlpush.com'));
@@ -28,6 +28,15 @@ test('stable local subscription and separate bootstrap with request-body handlin
 });
 test('base origin validation', () => {
   for (const base of ['https://user:pass@host', 'https://host/path', 'https://host/?x=1', 'file:///', 'https://a,b.com']) assert.throws(() => validateBase(base));
+});
+test('import uses the current app name and enables the resource parser without changing its subscription', () => {
+  const original = links({ id: 'app-first', title: 'First', ...input });
+  for (const title of ['成都地铁', 'Metro App', '地铁 & 出行']) {
+    const renamed = links({ id: 'app-first', title, ...input });
+    assert.equal(renamed.subscriptionUrl, original.subscriptionUrl);
+    assert.deepEqual(JSON.parse(new URL(renamed.importUrl).searchParams.get('remote-resource')).rewrite_remote,
+      [original.subscriptionUrl + ', tag=' + title + ', opt-parser=true, enabled=true']);
+  }
 });
 async function withServer(fn, options) {
   const server = await createServer({ baseURL: 'https://assets.example', ...options });
@@ -46,8 +55,8 @@ test('HTTP assets, standalone bundles, preview and no persistence', async () => 
   assert.equal(response.headers.get('access-control-allow-origin'), null);
   const data = await response.json();
   assert.equal(data.preview, true);
-  assert.equal(data.js, await (await fetch(base + '/qx/capture/app-first.js')).text());
-  assert.ok(data.js.startsWith('const QP_PROFILE_ID = "app-first";'));
+  assert.equal(data.js, globalThis.QPCore.profileScript(data.profile, await (await fetch(base + '/qx/capture.js')).text()));
+  assert.ok(!data.js.startsWith('const QP_PROFILE_ID'));
   assert.ok(data.conf.includes('https://qlpush.com/scripts/app-first.js'));
   assert.deepEqual((await (await fetch(base + '/api/status')).json()).profiles, []);
   assert.equal((await fetch(base + '/rewrite.conf')).status, 404);

@@ -59,14 +59,16 @@
     if (!Array.isArray(input.rules) || input.rules.length > 10) throw new Error('最多配置 10 个变量。');
     const names = new Set();
     return { rules: input.rules.map(rule => {
-      exactKeys(rule, ['name', 'url', 'header', 'enabled']);
+      exactKeys(rule, ['name', 'url', 'header', 'headerMode', 'enabled']);
       if (typeof rule.name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(rule.name)) throw new Error('变量名须以字母或下划线开头，最多 64 个字符。');
       if (names.has(rule.name)) throw new Error('变量名不能重复；暂不支持同名多账号。');
       names.add(rule.name);
       pattern(rule.url);
-      if (typeof rule.header !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,64}$/.test(rule.header)) throw new Error('请填写单个有效请求头名。');
+      const headerMode = rule.headerMode === undefined ? 'single' : rule.headerMode;
+      if (!['single', 'all'].includes(headerMode)) throw new Error('请求头保存方式无效。');
+      if (headerMode === 'single' && (typeof rule.header !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,64}$/.test(rule.header))) throw new Error('请填写单个有效请求头名。');
       if (typeof rule.enabled !== 'boolean') throw new Error('启用状态无效。');
-      return { name: rule.name, url: rule.url, header: rule.header.toLowerCase(), enabled: rule.enabled };
+      return { name: rule.name, url: rule.url, header: headerMode === 'all' ? '' : rule.header.toLowerCase(), ...(headerMode === 'all' ? { headerMode } : {}), enabled: rule.enabled };
     }) };
   }
   function generate(input, scriptURL) {
@@ -77,7 +79,7 @@
       [...new Set(rules.map(rule => pattern(rule.url).regex))].map(regex => regex + ' url script-request-header ' + scriptURL).join('\n') + '\n';
   }
   function importURL(url, tag) {
-    return 'https://quantumult.app/x/open-app/add-resource?remote-resource=' + encodeURIComponent(JSON.stringify({ rewrite_remote: [url + ', tag=' + tag + ', enabled=true'] }));
+    return 'https://quantumult.app/x/open-app/add-resource?remote-resource=' + encodeURIComponent(JSON.stringify({ rewrite_remote: [url + ', tag=' + tag + ', opt-parser=true, enabled=true'] }));
   }
   const PROFILES_KEY = 'qinglong_pusher_profiles_v2';
   function profile(input) {
@@ -120,8 +122,20 @@
     return result;
   }
   function profileLinks(input, base) {
-    const item = profile(input), subscriptionUrl = 'https://qlpush.com/profiles/' + item.id + '.conf';
-    return { profile: item, subscriptionUrl, importUrl: importURL(subscriptionUrl, 'QP-' + item.id), conf: '# App ID: ' + item.id + '\n' + generate({ rules: item.rules }, 'https://qlpush.com/scripts/' + item.id + '.js') };
+    const item = profile(input), subscriptionUrl = 'https://qlpush.com/scripts/' + item.id + '.js';
+    return { profile: item, subscriptionUrl, importUrl: importURL(subscriptionUrl, item.title), conf: '# App ID: ' + item.id + '\n' + generate({ rules: item.rules }, subscriptionUrl) };
+  }
+  function profileScript(input, source) {
+    const item = profile(input), url = profileLinks(item).subscriptionUrl;
+    const rules = item.rules.filter(rule => rule.enabled);
+    const hosts = [...new Set(rules.map(rule => pattern(rule.url)).filter(value => value.scheme === 'https').map(value => value.host))];
+    // Escape comment terminators without changing the regex matched by QX.
+    const rewrites = [...new Set(rules.map(rule => pattern(rule.url).regex))]
+      .map(regex => regex.replace(/\*\//g, '*\\/') + ' url script-request-header ' + url);
+    return '/*\n' + item.title.replace(/\*\//g, '* /') + '\nApp ID: ' + item.id +
+      '\n\n[rewrite_local]\n' + rewrites.join('\n') + '\n\n[MITM]\n' +
+      (hosts.length ? 'hostname = ' + hosts.join(', ') + '\n' : '') +
+      '*/\n\n' + captureScript(item.id, source);
   }
   function captureScript(id, source) {
     if (!/^[a-z0-9][a-z0-9-]{7,47}$/.test(id)) throw new Error('App 配置 ID 无效。');
@@ -140,5 +154,5 @@
     if (!secret || secret.length > 512 || /[\s\x00-\x1f\x7f]/.test(secret)) throw new Error('首次配置或更改地址、Client ID 时必须填写 Client Secret。');
     return { url, clientId: input.clientId, clientSecret: secret };
   }
-  root.QPCore = { CONFIG_KEY, PROFILES_KEY, PANEL_KEY, panel, normalize, pattern, generate, importURL, profile, profiles, overlaps, profileLinks, captureScript };
+  root.QPCore = { CONFIG_KEY, PROFILES_KEY, PANEL_KEY, panel, normalize, pattern, generate, importURL, profile, profiles, overlaps, profileLinks, profileScript, captureScript };
 })(globalThis);

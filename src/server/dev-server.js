@@ -15,6 +15,7 @@ export async function createServer({ baseURL = 'http://localhost:8787', rateLimi
   const bundle = await assets(base);
   const files = new Map(Object.entries(bundle.files));
   files.set('/qx/local.js', [bundle.local, 'text/javascript']);
+  files.set('/qx/capture.js', [bundle.capture, 'text/javascript']);
   files.set('/qinglong-pusher.conf', [bootstrap(base), 'text/plain']);
   const buckets = new Map();
   return http.createServer({ requestTimeout: 15000, headersTimeout: 10000, maxHeaderSize: 8192 }, async (req, res) => {
@@ -52,7 +53,7 @@ export async function createServer({ baseURL = 'http://localhost:8787', rateLimi
         }
         try {
           const result = links(JSON.parse(Buffer.concat(chunks).toString('utf8')), base);
-          return send(200, { ...result, js: globalThis.QPCore.captureScript(result.profile.id, bundle.capture), preview: true });
+          return send(200, { ...result, js: globalThis.QPCore.profileScript(result.profile, bundle.capture), preview: true });
         }
         catch (_) { return send(400, { error: '规则格式无效，请检查变量名、URL 和请求头；不接受凭据字段。' }); }
       }

@@ -3,16 +3,20 @@
   'use strict';
   class SafeError extends Error {}
   const core = globalThis.QPCore;
-  const LEASE = 'qinglong_pusher_lease_' + QP_PROFILE_ID;
-  const STATUS = 'qinglong_pusher_last_result_' + QP_PROFILE_ID;
+  let LEASE, STATUS;
   const owner = Date.now() + ':' + Math.random();
   let acquired = false;
   let timer;
   const deadline = Date.now() + 10000;
   const remaining = () => Math.max(1, deadline - Date.now());
   async function run() {
-    const config = core.profiles(JSON.parse($prefs.valueForKey(core.PROFILES_KEY) || '[]')).find(item => item.id === QP_PROFILE_ID);
+    const profiles = core.profiles(JSON.parse($prefs.valueForKey(core.PROFILES_KEY) || '[]'));
+    const matches = profiles.filter(item => item.rules.some(rule => rule.enabled && new RegExp(core.pattern(rule.url).regex).test($request.url || '')));
+    // Static download cannot carry a device-generated ID. Fail closed unless one App matches.
+    const config = typeof QP_PROFILE_ID !== 'undefined' ? profiles.find(item => item.id === QP_PROFILE_ID) : matches.length === 1 ? matches[0] : null;
     if (!config) return;
+    LEASE = 'qinglong_pusher_lease_' + config.id;
+    STATUS = 'qinglong_pusher_last_result_' + config.id;
     const rules = config.rules.filter(rule => rule.enabled && new RegExp(core.pattern(rule.url).regex).test($request.url || ''));
     if (!rules.length) return;
     let credentials;
@@ -23,6 +27,10 @@
     if (($request.url || '').toLowerCase().startsWith(panel[1].toLowerCase() + '/')) return;
     const requestHeaders = $request.headers || {};
     const values = rules.map(rule => {
+      if (rule.headerMode === 'all') {
+        const entries = Object.entries(requestHeaders).filter(([, value]) => typeof value === 'string');
+        return { rule, value: entries.length ? JSON.stringify(Object.fromEntries(entries)) : '' };
+      }
       const key = Object.keys(requestHeaders).find(key => key.toLowerCase() === rule.header);
       return { rule, value: requestHeaders[key] };
     }).filter(item => typeof item.value === 'string' && item.value.trim());
@@ -75,7 +83,7 @@
   const work = run().catch(error => {
     // Error messages are locally authored. Never log upstream bodies, headers or credentials.
     const safe = error instanceof SafeError ? error.message : '本地配置无效，请重新保存。';
-    $prefs.setValueForKey(JSON.stringify({ action: 'error', message: safe, time: new Date().toISOString() }), STATUS);
+    if (STATUS) $prefs.setValueForKey(JSON.stringify({ action: 'error', message: safe, time: new Date().toISOString() }), STATUS);
     $notify('qinglong-pusher', '同步未完成', safe);
   });
   Promise.race([work, new Promise(resolve => { timer = setTimeout(resolve, remaining() + 250); })]).finally(() => {

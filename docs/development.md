@@ -7,16 +7,16 @@
 入口参考 [Script-Hub](https://github.com/Script-Hub-Org/Script-Hub)。用户只添加一份入口重写；静态托管仅用于提供首次安装与更新资源，没有运行时服务器。
 
 ```text
-静态托管：qinglong-pusher.conf + qx/local.js
+静态托管：qinglong-pusher.conf + qx/local.js + qx/capture.js
   └─ QX 拦截 https://qlpush.com
        ├─ 页面与 API → QX preferences
-       ├─ /profiles/<app-id>.conf → 当前 App 独立重写
-       └─ /scripts/<app-id>.js → 当前 App 抓取脚本
+       ├─ /profiles/<app-id>.conf → 兼容旧订阅
+       └─ /scripts/<app-id>.js → 规则头部 + 独立 App 抓取脚本
                                       ↓
                               直接同步青龙 Open API
 ```
 
-入口脚本内置页面、样式、共享校验和抓取源码；请求 App JS 时按 ID 生成。无须为每个用户上传独立脚本，也无须公开用户的抓取配置。生成的 `.conf` 使用本地 `https://qlpush.com/scripts/<id>.js`，不依赖动态 Node 路由。
+入口脚本内置页面、校验和抓取源码。应用直接导入本地 JS，资源解析器从头部 `[rewrite_local]`、`[MITM]` 提取规则；规则引用同一 JS 地址，执行代码绑定 App ID。预览与保存后的下载共用生成器，用户配置不上传。
 
 QX 自身下载订阅和 JS 是否能经过入口重写、是否发生脚本缓存或递归限制，必须用真实 iPhone 验证。当前模拟测试验证代码路由，不替代 QX 客户端兼容性证明。
 
@@ -32,7 +32,7 @@ QX 自身下载订阅和 JS 是否能经过入口重写、是否发生脚本缓�
 | `POST /api/profiles` | 新建或更新单个 App |
 | `POST /api/profiles/<id>/delete` | 删除单个 App |
 | `GET /profiles/<id>.conf` | 动态独立重写 |
-| `GET /scripts/<id>.js` | 固定 App ID 的可执行 JS，与 UI 预览一致 |
+| `GET /scripts/<id>.js` | 带解析器规则头部的独立 App JS；新导入使用此地址 |
 
 POST 需要同源 Origin、JSON Content-Type、`X-QP-Local: 1`，不开放 CORS。使用 `script-analyze-echo-response` 等待请求体，其他请求使用 `script-echo-response`。
 

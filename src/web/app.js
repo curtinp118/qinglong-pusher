@@ -85,12 +85,18 @@ async function leave(next) {
 function addRule(rule = { name: '', url: '', header: 'cookie', enabled: true }) {
   if (cards().length >= 10) return;
   const card = byId('rule-template').content.firstElementChild.cloneNode(true);
-  for (const key of ['name', 'url', 'header', 'enabled']) {
+  for (const key of ['name', 'url', 'header', 'headerMode', 'enabled']) {
     const field = card.querySelector(`[data-field="${key}"]`); field.id = 'field-' + (++ruleSequence);
-    if (key === 'enabled') field.checked = rule[key]; else field.value = key === 'url' && rule[key] ? core.pattern(rule[key]).regex : rule[key];
+    if (key === 'enabled') field.checked = rule[key];
+    else if (key === 'headerMode') field.value = rule[key] || 'single';
+    else field.value = key === 'url' && rule[key] ? core.pattern(rule[key]).regex : rule[key];
   }
   const update = () => {
     card.classList.toggle('is-disabled', !card.querySelector('[data-field=enabled]').checked);
+    const all = card.querySelector('[data-field=headerMode]').value === 'all';
+    card.querySelector('.single-header').hidden = all;
+    card.querySelector('.all-headers-note').hidden = !all;
+    card.querySelector('[data-field=header]').required = !all;
     const value = card.querySelector('[data-field=header]').value.toLowerCase();
     card.querySelectorAll('[data-header]').forEach(button => {
       const selected = button.dataset.header === value; button.classList.toggle('selected', selected); button.setAttribute('aria-pressed', String(selected));
@@ -245,7 +251,7 @@ function presentResult(data, saved) {
   byId('result-kicker').textContent = saved ? (mode === 'device' ? '已保存到本机' : '仅保留在当前页面') : '草稿预览 · 尚未保存';
   byId('result-title').textContent = saved && mode === 'device' ? '已保存，可以导入 QX' : '检查生成的脚本';
   byId('result-help').textContent = saved ? (mode === 'device' ? '配置已生效。新应用请导入重写；修改过 URL 的已有应用，请在 QX 刷新对应资源。' : '已加入当前页面的预览列表，刷新后清除，不代表保存到了手机。') : '预览不会改变已保存的规则，也不会执行 JS。确认后再保存，或返回继续修改。';
-  byId('result-app').textContent = item.title + '.js';
+  byId('result-app').textContent = data.profile.title + '.js';
   byId('result-meta').textContent = item.rules.filter(rule => rule.enabled).length + ' 条启用规则 · ' + (saved ? '已保存版本' : '当前草稿');
   byId('result-error').hidden = true;
   if (!byId('result-dialog').open) {

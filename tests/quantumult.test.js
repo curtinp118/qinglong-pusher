@@ -32,8 +32,10 @@ test('QX saves rules locally and fixed subscription reflects changes', () => {
   const saved = local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify(config), store });
   assert.match(saved.status, /200/);
   const source = JSON.parse(saved.body).js;
-  assert.equal(source, 'const QP_PROFILE_ID = "app-first";\n' + bundle.capture);
+  assert.ok(source.startsWith('/*\nFirst\n'));
   assert.equal(local('/scripts/app-first.js', { store }).body, source);
+  assert.ok(source.includes('[rewrite_local]\n^https://api\\.example\\.com/user/.*$ url script-request-header https://qlpush.com/scripts/app-first.js'));
+  assert.ok(source.includes('[MITM]\nhostname = api.example.com'));
   assert.doesNotThrow(() => new vm.Script(source));
   assert.deepEqual(JSON.parse(store.values.get(key)), [config]);
   assert.ok(local('/profiles/app-first.conf', { store }).body.includes('api.example.com'));
@@ -48,13 +50,33 @@ test('QX rejects cross-site saves, unsupported methods and malformed stored stat
   const store = prefs(); store.setValueForKey = () => false;
   assert.match(local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify(config), store }).status, /500/);
 });
-async function capture({ envs = [], rules = [rule], request = {}, response, initial = {} } = {}) {
+test('JS parser header preserves optional regex groups and safely escapes comment terminators', () => {
+  const regex = String.raw`^https://api\.example\.com/user/.*/sign-in(-day)?(\?.*)?$`;
+  const item = { ...config, title: 'Metro */ App', rules: [{ ...rule, url: regex }] };
+  const store = prefs();
+  const saved = JSON.parse(local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify(item), store }).body);
+  assert.equal(saved.subscriptionUrl, 'https://qlpush.com/scripts/app-first.js');
+  const resource = JSON.parse(new URL(saved.importUrl).searchParams.get('remote-resource')).rewrite_remote[0];
+  assert.equal(resource, saved.subscriptionUrl + ', tag=Metro */ App, opt-parser=true, enabled=true');
+  assert.equal(saved.js, local('/scripts/app-first.js', { store }).body);
+  assert.doesNotThrow(() => new vm.Script(saved.js));
+  const header = saved.js.slice(0, saved.js.indexOf('*/'));
+  const extracted = header.split('\n').find(line => line.includes(' url script-request-header ')).split(' url ')[0];
+  for (const url of ['https://api.example.com/user/x/sign-in', 'https://api.example.com/user/x/sign-in-day?x=1', 'https://api.example.com/no']) {
+    assert.equal(new RegExp(extracted).test(url), new RegExp(regex).test(url));
+  }
+  local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify({ ...item, rules: [{ ...item.rules[0], enabled: false }] }), store });
+  const disabledHeader = local('/scripts/app-first.js', { store }).body.split('*/')[0];
+  assert.ok(!disabledHeader.includes('script-request-header'));
+  assert.ok(!disabledHeader.includes('hostname ='));
+});
+async function capture({ staticScript = false, envs = [], rules = [rule], request = {}, response, initial = {} } = {}) {
   const store = prefs({ [key]: JSON.stringify([{ ...config, rules }]), [panelKey]: JSON.stringify(panelFixture), ...initial });
   const calls = [], notifications = [];
   let count = 0;
   await new Promise((resolve, reject) => {
     try {
-      vm.runInNewContext('const QP_PROFILE_ID = "app-first";\n' + bundle.capture, {
+      vm.runInNewContext((staticScript ? '' : 'const QP_PROFILE_ID = "app-first";\n') + bundle.capture, {
         $request: { url: 'https://api.example.com/user/info', headers: { COOKIE: 'synthetic-value' }, ...request },
         $prefs: store, setTimeout, clearTimeout,
         $task: { fetch: async options => { calls.push(options); return response ? response(options) : { statusCode: 200, body: JSON.stringify({ code: 200, data: options.url.includes('/auth/token') ? { token: 'synthetic-access' } : options.method === 'GET' ? envs : [] }) }; } },
@@ -80,6 +102,37 @@ test('capture updates matching id and preserves labels/remarks', async () => {
   const result = await capture({ envs: [{ name: rule.name, id: 7, value: 'old', remarks: 'keep', labels: ['label'] }] });
   assert.equal(result.calls[2].method, 'PUT');
   assert.deepEqual(JSON.parse(result.calls[2].body), { name: rule.name, id: 7, value: 'synthetic-value', remarks: 'keep', labels: ['label'] });
+});
+test('all-header mode stores a JSON object value without persisting captured headers locally', async () => {
+  const headers = { Connection: 'keep-alive', Accept: '*/*', 'User-Agent': 'Synthetic "device"', token: 'synthetic-header-token', Cookie: 'synthetic-cookie; other=value', Empty: '' };
+  const rules = [{ ...rule, headerMode: 'all', header: '' }];
+  const result = await capture({ rules, request: { headers } });
+  const value = JSON.parse(result.calls[2].body)[0].value;
+  assert.equal(value, JSON.stringify(headers));
+  assert.deepEqual(JSON.parse(value), headers);
+  const localData = JSON.stringify([...result.store.values]) + JSON.stringify(result.notifications);
+  assert.ok(!localData.includes(headers.token));
+  assert.ok(!localData.includes('synthetic-cookie'));
+  const updated = await capture({ rules, request: { headers }, envs: [{ name: rule.name, id: 7, value: 'old' }] });
+  assert.equal(updated.calls[2].method, 'PUT');
+  assert.equal(JSON.parse(updated.calls[2].body).value, value);
+  const unchanged = await capture({ rules, request: { headers }, envs: [{ name: rule.name, id: 7, value }] });
+  assert.equal(unchanged.calls.length, 2);
+  for (const options of [{ request: { headers: {} } }, { rules: [{ ...rules[0], enabled: false }] }, { request: { url: 'https://other.example/' } }]) {
+    assert.equal((await capture({ rules, ...options })).calls.length, 0);
+  }
+});
+test('all-header configuration round trips and can coexist with a single-header rule', async () => {
+  const rules = [rule, { ...rule, name: 'ALL_HEADERS', headerMode: 'all', header: '' }];
+  const store = prefs();
+  const saved = local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify({ ...config, rules }), store });
+  assert.match(saved.status, /200/);
+  assert.deepEqual(JSON.parse(local('/api/status', { store }).body).profiles[0].rules, rules);
+  const result = await capture({ rules });
+  assert.equal(JSON.parse(result.calls[2].body)[0].value, 'synthetic-value');
+  assert.deepEqual(JSON.parse(JSON.parse(result.calls[4].body)[0].value), { COOKIE: 'synthetic-value' });
+  const invalid = local('/api/preview', { method: 'POST', headers: saveHeaders, body: JSON.stringify({ ...config, rules: [{ ...rule, headerMode: 'invalid' }] }), store });
+  assert.match(invalid.status, /400/);
 });
 test('unchanged, disabled, missing header, unmatched URL and active lease never write', async () => {
   assert.equal((await capture({ envs: [{ name: rule.name, id: 1, value: 'synthetic-value' }] })).calls.length, 2);
@@ -111,13 +164,20 @@ test('two App profiles have isolated subscriptions, edits, deletes and capture s
   assert.notEqual(firstResult.subscriptionUrl, secondResult.subscriptionUrl);
   assert.notEqual(firstResult.importUrl, secondResult.importUrl);
   const secondConf = local('/profiles/app-second.conf', { store }).body;
-  assert.ok(secondConf.includes('/scripts/app-second.js'));
+  const secondJS = local('/scripts/app-second.js', { store }).body;
+  assert.ok(secondConf.includes('https://qlpush.com/scripts/app-second.js'));
   assert.ok(!secondConf.includes('api.example.com'));
   save({ ...config, title: 'Renamed', rules: [{ ...rule, enabled: false }] });
   assert.equal(local('/profiles/app-second.conf', { store }).body, secondConf);
+  assert.equal(local('/scripts/app-second.js', { store }).body, secondJS);
   const deletion = local('/api/profiles/app-first/delete', { method: 'POST', headers: saveHeaders, body: '{}', store });
   assert.match(deletion.status, /200/);
   assert.ok(!local('/profiles/app-first.conf', { store }).body.includes('script-request-header'));
+  assert.equal(local('/scripts/app-second.js', { store }).body, secondJS);
+  const removed = local('/scripts/app-first.js', { store });
+  assert.match(removed.status, /200/);
+  assert.ok(!removed.body.includes('script-request-header'));
+  assert.doesNotThrow(() => vm.runInNewContext(removed.body, { $done: () => {} }));
   assert.equal(local('/profiles/app-second.conf', { store }).body, secondConf);
   assert.deepEqual(JSON.parse(store.values.get(key)), [second]);
   const captureResult = await capture({ initial: { [key]: JSON.stringify([second]) } });
@@ -176,7 +236,8 @@ test('draft preview generates JS without creating or updating saved profiles', (
   assert.match(result.status, /200/);
   assert.equal(JSON.parse(result.body).saved, false);
   assert.equal(JSON.parse(result.body).profile.title, 'Unsaved title');
-  assert.ok(JSON.parse(result.body).js.includes('const QP_PROFILE_ID'));
+  assert.ok(JSON.parse(result.body).js.startsWith('/*\nUnsaved title\n'));
+  assert.notEqual(JSON.parse(result.body).js, local('/scripts/app-first.js', { store }).body);
   assert.equal(JSON.stringify([...store.values]), before);
   const fresh = prefs();
   const preview = local('/api/preview', { method: 'POST', headers: saveHeaders, body: JSON.stringify(config), store: fresh });
@@ -227,4 +288,19 @@ test('panel test rejects auth, permissions, malformed responses, timeouts and cr
   assert.match(denied.result.status, /403/); assert.equal(denied.calls.length, 0);
   const missing = await panelTest(() => {}, { store: prefs() });
   assert.match(missing.result.status, /400/); assert.equal(missing.calls.length, 0);
+});
+
+test('published static capture selects the matching App and keeps independent status', async () => {
+  const second = { id: 'app-second', title: 'Second', rules: [{ ...rule, name: 'SECOND_ENV', url: 'https://second.example.com/user/*' }] };
+  const initial = { [key]: JSON.stringify([config, second]) };
+  const first = await capture({ staticScript: true, initial });
+  assert.equal(JSON.parse(first.calls[2].body)[0].name, 'TEST_ENV');
+  const other = await capture({ staticScript: true, initial, request: { url: 'https://second.example.com/user/info' } });
+  assert.equal(JSON.parse(other.calls[2].body)[0].name, 'SECOND_ENV');
+  assert.ok(other.store.values.has('qinglong_pusher_last_result_app-second'));
+  assert.ok(!other.store.values.has('qinglong_pusher_last_result_app-first'));
+  const removed = await capture({ staticScript: true, initial: { [key]: JSON.stringify([second]) } });
+  assert.equal(removed.calls.length, 0);
+  const disabled = await capture({ staticScript: true, rules: [{ ...rule, enabled: false }] });
+  assert.equal(disabled.calls.length, 0);
 });

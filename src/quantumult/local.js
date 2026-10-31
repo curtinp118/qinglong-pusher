@@ -60,7 +60,10 @@
     const method = request.method || 'GET';
     if (method === 'GET' && QP_ASSETS[path]) return send(200, QP_ASSETS[path][0], QP_ASSETS[path][1]);
     const script = /^\/scripts\/([a-z0-9][a-z0-9-]{7,47})\.js$/.exec(path);
-    if (method === 'GET' && script) return send(200, core.captureScript(script[1], QP_CAPTURE_SOURCE), 'text/javascript');
+    if (method === 'GET' && script) {
+      const item = load().find(item => item.id === script[1]);
+      return send(200, item ? core.profileScript(item, QP_CAPTURE_SOURCE) : '/*\n[rewrite_local]\n\n[MITM]\n*/\n$done({});\n', 'text/javascript');
+    }
     if (method === 'GET' && path === '/api/status') {
       const profiles = load().map(item => {
         let last = null;
@@ -111,7 +114,7 @@
       try { item = core.profile(body); next = core.profiles([...current.filter(other => other.id !== item.id), item]); }
       catch (error) { return send(400, { error: error.message }); }
       if (path !== '/api/preview' && !$prefs.setValueForKey(JSON.stringify(next), core.PROFILES_KEY)) return send(500, { error: 'QX 本地保存失败，未生成导入结果。' });
-      return send(200, { ...core.profileLinks(item, QP_BASE), js: core.captureScript(item.id, QP_CAPTURE_SOURCE), saved: path !== '/api/preview' });
+      return send(200, { ...core.profileLinks(item, QP_BASE), js: core.profileScript(item, QP_CAPTURE_SOURCE), saved: path !== '/api/preview' });
     }
     return send(404, { error: '本地资源不存在。' });
   } catch (_) { return send(400, { error: '配置无效，请检查规则；本地数据不会自动覆盖。' }); }

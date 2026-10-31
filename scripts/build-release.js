@@ -14,11 +14,12 @@ export async function publish(baseURL, output) {
   await mkdir(resolve(output, 'qx'), { recursive: true });
   await writeFile(resolve(output, 'qinglong-pusher.conf'), bootstrap(address));
   await writeFile(resolve(output, 'qx/local.js'), bundle.local);
+  await writeFile(resolve(output, 'qx/capture.js'), bundle.capture);
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const [base, output = 'release'] = process.argv.slice(2);
   if (!base) throw new Error('Usage: npm run build -- https://<static-host>/<directory> [output-directory]');
   await publish(base, output);
-  console.log('Static release written to ' + resolve(output) + '. Publish both qinglong-pusher.conf and qx/local.js; no server process is needed.');
+  console.log('Static release written to ' + resolve(output) + '. Publish qinglong-pusher.conf, qx/local.js and qx/capture.js; no server process is needed.');
 }

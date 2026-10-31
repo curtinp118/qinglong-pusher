@@ -17,3 +17,5 @@
 .profile-row{display:block;padding:0}.profile-row .profile-open{width:100%;padding:18px 16px 10px;min-height:76px}.profile-row .profile-open>svg{display:block}.profile-actions{display:flex;justify-content:flex-end;gap:8px;padding:0 16px 14px}.profile-actions .profile-import,.profile-delete{border:1px solid var(--line);min-height:44px;min-width:78px;border-radius:9px;padding:0 14px;font-size:11px}.profile-actions .profile-import{border-color:#dce4fb}.profile-delete{background:transparent;color:var(--danger)}
 
 .page-heading{margin-bottom:24px}.editor-title{margin-bottom:26px}.empty-state h2{margin-bottom:24px}.script-preview .section-row{margin-bottom:10px}
+
+.rule-card select{display:block;width:100%;min-height:44px;margin-top:7px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:#f8f9fb;color:var(--ink);font:inherit;font-size:16px}.rule-card select:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
