@@ -32,9 +32,9 @@ release/
   qx/local.js
 ```
 
-把两个文件按此目录结构上传到所指定的地址，用户只添加其中的 `qinglong-pusher.conf`。入口文件已引用完整静态脚本 URL，不需要后端 API 或动态路由。可传第二个参数指定输出目录；默认 `release/` 已被 Git 忽略；使用本仓库 Raw 发布时，须在审核生成内容后显式添加这两个文件（`git add -f release/qinglong-pusher.conf release/qx/local.js`），发布到 `main` 分支。不要上传调试文件或凭据。
+把两个文件按此目录结构上传到所指定的地址，用户只添加其中的 `qinglong-pusher.conf`。入口文件已引用完整静态脚本 URL，不需要后端 API 或动态路由。可传第二个参数指定输出目录；`release/` 纳入版本控制；审核后使用 `git add release/qinglong-pusher.conf release/qx/local.js` 添加两个文件，发布到 `main` 分支。每次修改页面、共享逻辑或 QX 脚本后，都应重新构建并同步提交发布文件。不要上传调试文件或凭据。
 
-已确认远端仓库存在且默认分支为 `main`；本次检查两个安装资源地址均返回 404，需先上传发布文件。上述链接是确定的发布目标，不表示已可安装。构建不会配置 Git remote，也不会自动上传、提交或推送。
+默认分支为 `main`，用户直接订阅仓库中的发布文件。发布后检查 `.conf` 和其引用的 `qx/local.js` 两个 Raw 地址均可下载。构建不会配置 Git remote，也不会自动上传、提交或推送。
 
 页面更新后重新打包并上传静态脚本，用户刷新入口资源及其脚本缓存。入口需保持启用；各 App 订阅和抓取 JS 依赖它在本机响应。
 

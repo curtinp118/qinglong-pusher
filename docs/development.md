@@ -62,7 +62,7 @@ src/
   shared/                    跨 Node、浏览器和 QX 的校验及生成逻辑
   web/                       iPhone 页面、样式和 PWA 资源
 tests/                       对应模块的 *.test.js 测试
-release/                     构建输出，默认忽略，不作为源码编辑
+release/                     构建输出，纳入版本控制，不手工编辑
 ```
 
 目录与普通文件名使用小写连字符；保留 `README.md` 等通用约定。JavaScript 使用 ES modules、两空格缩进、UTF-8 和 LF，详见 `.editorconfig`、`.gitattributes`。QX 与浏览器源码通过打包共享，不在运行时导入 Node 模块。

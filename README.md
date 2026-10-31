@@ -20,7 +20,7 @@
 
 ### 1. 安装入口
 
-将以下订阅地址添加到 **Quantumult X → 重写 → 引用资源**（发布完成后可用）：
+将以下订阅地址添加到 **Quantumult X → 重写 → 引用资源**：
 
 ```text
 https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglong-pusher.conf
