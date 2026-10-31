@@ -7,11 +7,12 @@
 入口参考 [Script-Hub](https://github.com/Script-Hub-Org/Script-Hub)。用户只添加一份入口重写；静态托管仅用于提供首次安装与更新资源，没有运行时服务器。
 
 ```text
-静态托管：qinglong-pusher.conf + qx/local.js + qx/capture.js
+静态托管：qinglong-pusher.conf + qx/local.js + qx/capture.js + qx/backend.js
   └─ QX 拦截 https://qlpush.com
        ├─ 页面与 API → QX preferences
        ├─ /profiles/<app-id>.conf → 兼容旧订阅
-       └─ /scripts/<app-id>.js → 规则头部 + 独立 App 抓取脚本
+       └─ QX http_backend 127.0.0.1:9999/qinglong-pusher/scripts/<app-id>.js
+          → 规则头部 + 独立 App 抓取脚本
                                       ↓
                               直接同步青龙 Open API
 ```
@@ -89,3 +90,5 @@ npm start
 `npm run icons` 重新生成 `src/web/pwa-icons.json`（180 / 192 / 512px）；不依赖图片 CDN。不要把 `/api/*`、`/profiles/*`、`/scripts/*` 加入缓存，也不要把认证或配置塞进 manifest、URL 或 Service Worker。
 
 测试包括 manifest/PNG 校验、缓存路由隔离，以及浏览器断网加载与编辑禁用。iOS 安装验收仍需真实设备。
+
+`src/quantumult/backend.js` 是仅提供 JS 的独立后端，不提供控制台 API。构建将其与共享校验、抓取源打包到 `qx/backend.js`，同一入口 conf 声明 `[http_backend]`。旧 HTTPS JS 路由兼容手动访问，新的导入和头部执行地址只使用 loopback。

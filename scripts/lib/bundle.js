@@ -11,6 +11,7 @@ export async function assets(baseURL) {
   const files = { '/': [html.replace('__APPLE_ICON__', icons.apple), 'text/html'], '/style.css': [css, 'text/css'], '/app.js': [app, 'text/javascript'], '/core.js': [core, 'text/javascript'], '/pwa.js': [pwa, 'text/javascript'], '/manifest.webmanifest': [manifest, 'application/manifest+json'] };
   const version = createHash('sha256').update(JSON.stringify(files) + worker).digest('hex').slice(0, 16);
   files['/sw.js'] = [worker.replace('__PWA_VERSION__', version), 'text/javascript'];
+  const backend = await read('src/quantumult/backend.js');
   const captureSource = core + '\n' + capture;
-  return { files, local: 'const QP_BASE = ' + JSON.stringify(baseURL) + ';\nconst QP_ASSETS = ' + JSON.stringify(files) + ';\nconst QP_CAPTURE_SOURCE = ' + JSON.stringify(captureSource) + ';\n' + core + '\n' + local, capture: captureSource };
+  return { files, backend: 'const QP_CAPTURE_SOURCE = ' + JSON.stringify(captureSource) + ';\n' + core + '\n' + backend, local: 'const QP_BASE = ' + JSON.stringify(baseURL) + ';\nconst QP_ASSETS = ' + JSON.stringify(files) + ';\nconst QP_CAPTURE_SOURCE = ' + JSON.stringify(captureSource) + ';\n' + core + '\n' + local, capture: captureSource };
 }

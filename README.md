@@ -26,7 +26,9 @@
 https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglong-pusher.conf
 ```
 
-添加后，启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。
+同一份 conf 已包含 `[rewrite_local]`、`[mitm]` 和 `[http_backend]`。启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。
+
+**本地脚本服务：**确认 QX 已加载 conf 中的 `[http_backend]`。若通过「重写引用」添加后未加载该段，请将其中的后端配置行合并到 QX 主配置的 `[http_backend]` 下；不要用本项目 conf 覆盖完整主配置。应用 JS 从 `http://127.0.0.1:9999/qinglong-pusher/scripts/…` 下载，不依赖 `qlpush.com` 下载请求被重写。
 
 保持 QX 开启，在 iPhone Safari 中访问 **[https://qlpush.com/](https://qlpush.com/)**，进入配置页面。
 
@@ -71,7 +73,7 @@ https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglo
 
 在开启 QX 的 iPhone 上，通过 Safari 访问本地控制台，选择 **分享 → 添加到主屏幕**。不要把电脑上的 `localhost` 开发预览作为正式应用安装。
 
-离线缓存仅包含界面资源，不等于离线同步。QX 入口不可用时，页面不能读取配置或保存更改；连接测试和同步仍依赖网络。更新页面后若看到旧 UI，在设置中启用新版本，再刷新。
+离线缓存仅包含界面资源，不等于离线同步。QX 入口不可用时，页面不能读取配置或保存更改；连接测试和同步仍依赖网络。启动、回到前台及保持前台时会检查更新，也可在设置中手动检查；确认后切换新版并刷新，未保存编辑时禁止更新。页面内置于 QX 脚本，发布后需先更新入口脚本缓存。
 
 ## 数据与安全
 

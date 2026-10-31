@@ -31,6 +31,7 @@ function updatePanelTest() {
 const panelDraft = () => JSON.stringify({ url: byId('panel-url').value, clientId: byId('panel-client').value });
 const panelDirty = () => mode === 'device' && (panelDraft() !== panelOriginal || !!byId('panel-secret').value);
 const dirty = () => (view === 'editor' && JSON.stringify(draft()) !== original) || (view === 'settings' && panelDirty());
+window.qpCanUpdate = () => !busy && !dirty();
 function recount() {
   cards().forEach((card, index) => { card.querySelector('.rule-index').textContent = '规则 ' + (index + 1); });
   byId('count').textContent = cards().length + ' / 10';

@@ -2,7 +2,7 @@
 const CACHE = 'qinglong-pusher-shell-__PWA_VERSION__';
 const SHELL = ['/', '/style.css', '/core.js', '/app.js', '/pwa.js', '/manifest.webmanifest'];
 self.addEventListener('install', event => {
-  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)));
+  event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL.map(path => new Request(path, { cache: 'reload' })))));
 });
 self.addEventListener('activate', event => {
   event.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(key => key.startsWith('qinglong-pusher-shell-') && key !== CACHE).map(key => caches.delete(key)))).then(() => self.clients.claim()));

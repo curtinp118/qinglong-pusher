@@ -122,7 +122,7 @@
     return result;
   }
   function profileLinks(input, base) {
-    const item = profile(input), subscriptionUrl = 'https://qlpush.com/scripts/' + item.id + '.js';
+    const item = profile(input), subscriptionUrl = 'http://127.0.0.1:9999/qinglong-pusher/scripts/' + item.id + '.js';
     return { profile: item, subscriptionUrl, importUrl: importURL(subscriptionUrl, item.title), conf: '# App ID: ' + item.id + '\n' + generate({ rules: item.rules }, subscriptionUrl) };
   }
   function profileScript(input, source) {

@@ -31,3 +31,38 @@ test('service worker intercepts only static shell GETs, never config, auth, scri
   handlers.fetch({ request: { url: 'https://qlpush.com/style.css', method: 'GET' }, respondWith: () => { calls++; } });
   assert.equal(calls, 1);
 });
+
+test('PWA checks on foreground and manual action, protects drafts and reloads only after consent', async () => {
+  const elements = new Map();
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, { hidden: true, disabled: true, textContent: '', handlers: {}, addEventListener(type, fn) { this.handlers[type] = fn; } });
+    return elements.get(id);
+  };
+  const windowHandlers = {}, documentHandlers = {}, workerHandlers = {};
+  let checks = 0, messages = 0, reloads = 0, safe = false, confirmCount = 0, now = 100000;
+  const reg = { waiting: { postMessage: () => { messages++; } }, update: async () => { checks++; }, addEventListener() {} };
+  const window = { isSecureContext: true, qpCanUpdate: () => safe, addEventListener: (type, fn) => { windowHandlers[type] = fn; } };
+  const document = { hidden: false, getElementById: element, addEventListener: (type, fn) => { documentHandlers[type] = fn; } };
+  vm.runInNewContext(bundle.files['/pwa.js'][0], {
+    window, document, navigator: { serviceWorker: { register: async () => reg, addEventListener: (type, fn) => { workerHandlers[type] = fn; } } },
+    matchMedia: () => ({ matches: true, addEventListener() {} }),
+    setInterval: () => {}, Date: { now: () => now }, location: { reload: () => { reloads++; } },
+    confirm: () => { confirmCount++; return true; }
+  });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(checks, 1);
+  await element('pwa-check').handlers.click();
+  assert.equal(checks, 2);
+  now += 61000;
+  documentHandlers.visibilitychange();
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(checks, 3);
+  element('pwa-update').handlers.click();
+  assert.equal(messages, 0);
+  assert.equal(confirmCount, 0);
+  safe = true;
+  element('pwa-update').handlers.click();
+  assert.equal(messages, 1);
+  workerHandlers.controllerchange();
+  assert.equal(reloads, 1);
+});

@@ -19,8 +19,8 @@ test('rejects unsafe patterns, secret fields, duplicate variables and invalid he
 });
 test('stable local subscription and separate bootstrap with request-body handling', () => {
   const data = links({ id: 'app-first', title: 'First', ...input }, 'https://assets.example');
-  assert.equal(data.subscriptionUrl, 'https://qlpush.com/scripts/app-first.js');
-  assert.deepEqual(JSON.parse(new URL(data.importUrl).searchParams.get('remote-resource')).rewrite_remote, ['https://qlpush.com/scripts/app-first.js, tag=First, opt-parser=true, enabled=true']);
+  assert.equal(data.subscriptionUrl, 'http://127.0.0.1:9999/qinglong-pusher/scripts/app-first.js');
+  assert.deepEqual(JSON.parse(new URL(data.importUrl).searchParams.get('remote-resource')).rewrite_remote, ['http://127.0.0.1:9999/qinglong-pusher/scripts/app-first.js, tag=First, opt-parser=true, enabled=true']);
   const conf = bootstrap('https://assets.example');
   assert.ok(conf.indexOf('script-analyze-echo-response') < conf.indexOf(' url script-echo-response'));
   assert.ok(conf.includes('hostname = qlpush.com'));
@@ -57,7 +57,7 @@ test('HTTP assets, standalone bundles, preview and no persistence', async () => 
   assert.equal(data.preview, true);
   assert.equal(data.js, globalThis.QPCore.profileScript(data.profile, await (await fetch(base + '/qx/capture.js')).text()));
   assert.ok(!data.js.startsWith('const QP_PROFILE_ID'));
-  assert.ok(data.conf.includes('https://qlpush.com/scripts/app-first.js'));
+  assert.ok(data.conf.includes('http://127.0.0.1:9999/qinglong-pusher/scripts/app-first.js'));
   assert.deepEqual((await (await fetch(base + '/api/status')).json()).profiles, []);
   assert.equal((await fetch(base + '/rewrite.conf')).status, 404);
   assert.equal((await fetch(base + '/api/panel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 404);
