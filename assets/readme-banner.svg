@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="400" viewBox="0 0 1280 400" role="img" aria-labelledby="title description">
+  <title id="title">qinglong-pusher</title>
+  <desc id="description">One app, one configuration. Device-local Quantumult X capture and Qinglong environment synchronization.</desc>
+  <defs>
+    <linearGradient id="background" x2="1" y2="1"><stop stop-color="#142820"/><stop offset="1" stop-color="#284737"/></linearGradient>
+    <pattern id="grid" width="36" height="36" patternUnits="userSpaceOnUse"><path d="M36 0H0V36" fill="none" stroke="#d9efb5" stroke-opacity=".05"/></pattern>
+  </defs>
+  <rect width="1280" height="400" rx="20" fill="url(#background)"/>
+  <rect width="1280" height="400" rx="20" fill="url(#grid)"/>
+  <g fill="none" stroke="#a6c784" stroke-opacity=".25" stroke-width="2"><path d="M890 72h110l52 52h150M866 324h100l60-60h176M1000 200h202"/><circle cx="890" cy="72" r="5"/><circle cx="866" cy="324" r="5"/></g>
+  <text x="76" y="96" fill="#cfe89b" font-family="monospace" font-size="15" letter-spacing="4">CAPTURE. SYNC. DONE.</text>
+  <text x="72" y="184" fill="#f5f7ed" font-family="monospace" font-size="66" font-weight="700" letter-spacing="-3">qinglong-pusher</text>
+  <text x="76" y="242" fill="#d7e0cf" font-family="sans-serif" font-size="25">One App. One Config. No Interference.</text>
+  <text x="76" y="318" fill="#a5bc96" font-family="monospace" font-size="14" letter-spacing="2">QUANTUMULT X / ON-DEVICE / QINGLONG</text>
+  <circle cx="1080" cy="200" r="78" fill="#ddf696"/>
+  <path d="M1044 235l70-70m-55 0h55v55" fill="none" stroke="#23382f" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

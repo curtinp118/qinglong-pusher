@@ -1,0 +1,11 @@
+AGENTS.md
+.tmp/
+artifacts/
+archives/
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+release/

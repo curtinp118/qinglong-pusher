@@ -1,0 +1,33 @@
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import { assets } from '../scripts/lib/bundle.js';
+const bundle = await assets('https://static.example/release');
+test('PWA assets are embedded for QX with standalone manifest and real PNG icons', () => {
+  const files = bundle.files;
+  const manifest = JSON.parse(files['/manifest.webmanifest'][0]);
+  assert.equal(manifest.display, 'standalone');
+  assert.equal(manifest.start_url, '/');
+  for (const item of manifest.icons) {
+    const png = Buffer.from(item.src.split(',')[1], 'base64');
+    assert.equal(png.toString('ascii', 1, 4), 'PNG');
+    assert.equal(png.readUInt32BE(16), Number(item.sizes.split('x')[0]));
+  }
+  assert.ok(!files['/'][0].includes('__APPLE_ICON__'));
+  assert.ok(!files['/sw.js'][0].includes('__PWA_VERSION__'));
+  for (const path of ['/sw.js', '/pwa.js', '/manifest.webmanifest']) assert.ok(bundle.local.includes(path));
+});
+test('service worker intercepts only static shell GETs, never config, auth, scripts or subscriptions', () => {
+  const handlers = {};
+  let calls = 0;
+  vm.runInNewContext(bundle.files['/sw.js'][0], {
+    self: { location: { origin: 'https://qlpush.com' }, addEventListener: (type, fn) => { handlers[type] = fn; } },
+    URL, caches: { open: async () => ({ match: async () => 'cached' }) }, fetch: () => { throw new Error('unexpected'); }
+  });
+  for (const [path, method] of [['/api/status','GET'], ['/api/panel','POST'], ['/api/panel/test','POST'], ['/api/preview','POST'], ['/profiles/app-first.conf','GET'], ['/scripts/app-first.js','GET'], ['/qx/local.js','GET'], ['/?token=fixture','GET'], ['/style.css','POST']]) {
+    handlers.fetch({ request: { url: 'https://qlpush.com' + path, method }, respondWith: () => { calls++; } });
+  }
+  assert.equal(calls, 0);
+  handlers.fetch({ request: { url: 'https://qlpush.com/style.css', method: 'GET' }, respondWith: () => { calls++; } });
+  assert.equal(calls, 1);
+});

@@ -1,0 +1,144 @@
+/* Shared by Node, the browser, and Quantumult X (no browser-only APIs). */
+(function (root) {
+  'use strict';
+  const CONFIG_KEY = 'qinglong_pusher_config_v1';
+  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  function exactKeys(value, allowed) {
+    if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).some(key => !allowed.includes(key))) {
+      throw new Error('配置字段无效，请勿提交凭据。');
+    }
+  }
+  function pattern(value) {
+    if (typeof value === 'string' && value.startsWith('^')) return regexPattern(value);
+    if (typeof value !== 'string' || value.length > 300 || /[^\x21-\x7e]|[\\,?#]/.test(value)) throw new Error('URL 不允许查询参数、片段、空白或凭据；路径支持 *。');
+    const match = /^(https?):\/\/([a-z0-9.-]+)(?::([0-9]{1,5}))?(\/[^\s]*)$/.exec(value);
+    if (!match) throw new Error('请填写完整的小写 http(s) 域名和路径，不支持域名通配。');
+    const [, scheme, host, port] = match;
+    if (host === 'qlpush.com' || host.endsWith('.qlpush.com')) throw new Error('不能抓取本地控制台域名。');
+    if (host.length > 253 || host.split('.').some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) || (port && (!/^[1-9][0-9]*$/.test(port) || +port > 65535))) throw new Error('域名或端口无效。');
+    if (/^[0-9.]+$/.test(host) && (host.split('.').length !== 4 || host.split('.').some(part => !/^(0|[1-9][0-9]{0,2})$/.test(part) || +part > 255))) throw new Error('请使用规范 IPv4 地址。');
+    if (/^0x/i.test(host) || host.split('.').some(part => /^0x/i.test(part))) throw new Error('请使用规范域名。');
+    return { scheme, host, regex: '^' + value.split('*').map(escape).join('.*') + '$' };
+  }
+  function regexPattern(value) {
+    if (value.length > 500 || /[^\x21-\x7e]/.test(value)) throw new Error('正则最多 500 字符，不能包含空白或换行。');
+    // Fixed authority makes MitM extraction reliable; the path remains a regex.
+    const text = value.replace(/\\\//g, '/');
+    const match = /^\^(https\?|https|http):\/\/((?:[a-z0-9-]|\\\.)+)(?::([0-9]{1,5}))?\/(.*)$/.exec(text);
+    if (!match) throw new Error('正则须以 ^http://、^https:// 或 ^https?:// 开头，域名中的点使用 \\.，并包含路径。');
+    const [, protocol, escapedHost, port, path] = match;
+    if (/^[*+?{]/.test(path)) throw new Error('域名后的路径分隔符 / 不能使用量词。');
+    const host = escapedHost.replace(/\\\./g, '.');
+    pattern('https://' + host + (port ? ':' + port : '') + '/');
+    // Reject scope escapes and high-risk constructs rather than evaluating arbitrary patterns.
+    let depth = 0, inClass = false;
+    for (let i = 0; i < path.length; i++) {
+      const char = path[i];
+      if (char === '\\') {
+        if (/[1-9k]/.test(path[i + 1] || '')) throw new Error('不支持反向引用。');
+        i++; continue;
+      }
+      if (char === '[' && !inClass) { inClass = true; continue; }
+      if (char === ']' && inClass) { inClass = false; continue; }
+      if (inClass) continue;
+      if (char === '(') {
+        if (path[i + 1] === '?' && path[i + 2] !== ':') throw new Error('不支持环视或内联标志。');
+        depth++;
+      }
+      if (char === ')') {
+        depth--;
+        if (/[*+{]/.test(path[i + 1] || '')) throw new Error('支持分组后 ?（可选），暂不支持分组后 *、+ 或 {n} 重复量词。');
+      }
+      if (char === '|' && depth === 0) throw new Error('路径中的分支请放入 (?:a|b)，不能在顶层使用 |。');
+    }
+    try { new RegExp(value); } catch (_) { throw new Error('正则表达式语法无效。'); }
+    return { scheme: protocol === 'http' ? 'http' : 'https', host, regex: value };
+  }
+  function normalize(input) {
+    exactKeys(input, ['rules']);
+    if (!Array.isArray(input.rules) || input.rules.length > 10) throw new Error('最多配置 10 个变量。');
+    const names = new Set();
+    return { rules: input.rules.map(rule => {
+      exactKeys(rule, ['name', 'url', 'header', 'enabled']);
+      if (typeof rule.name !== 'string' || !/^[A-Za-z_][A-Za-z0-9_]{0,63}$/.test(rule.name)) throw new Error('变量名须以字母或下划线开头，最多 64 个字符。');
+      if (names.has(rule.name)) throw new Error('变量名不能重复；暂不支持同名多账号。');
+      names.add(rule.name);
+      pattern(rule.url);
+      if (typeof rule.header !== 'string' || !/^[!#$%&'*+.^_`|~0-9A-Za-z-]{1,64}$/.test(rule.header)) throw new Error('请填写单个有效请求头名。');
+      if (typeof rule.enabled !== 'boolean') throw new Error('启用状态无效。');
+      return { name: rule.name, url: rule.url, header: rule.header.toLowerCase(), enabled: rule.enabled };
+    }) };
+  }
+  function generate(input, scriptURL) {
+    const rules = normalize(input).rules.filter(rule => rule.enabled);
+    const hosts = [...new Set(rules.map(rule => pattern(rule.url)).filter(item => item.scheme === 'https').map(item => item.host))];
+    return '# qinglong-pusher | device-local rules\n# Refresh this resource after changing URL patterns.\n' +
+      (hosts.length ? 'hostname = ' + hosts.join(', ') + '\n\n' : '\n') +
+      [...new Set(rules.map(rule => pattern(rule.url).regex))].map(regex => regex + ' url script-request-header ' + scriptURL).join('\n') + '\n';
+  }
+  function importURL(url, tag) {
+    return 'https://quantumult.app/x/open-app/add-resource?remote-resource=' + encodeURIComponent(JSON.stringify({ rewrite_remote: [url + ', tag=' + tag + ', enabled=true'] }));
+  }
+  const PROFILES_KEY = 'qinglong_pusher_profiles_v2';
+  function profile(input) {
+    exactKeys(input, ['id', 'title', 'rules']);
+    if (typeof input.id !== 'string' || !/^[a-z0-9][a-z0-9-]{7,47}$/.test(input.id)) throw new Error('App 配置 ID 无效。');
+    if (typeof input.title !== 'string' || !input.title.trim() || input.title.length > 40 || /[\x00-\x1f\x7f]/.test(input.title)) throw new Error('请填写 1–40 字的 App 名称。');
+    return { id: input.id, title: input.title.trim(), ...normalize({ rules: input.rules }) };
+  }
+  function literalPrefix(regex) {
+    let prefix = '';
+    for (let i = 1; i < regex.length; i++) {
+      const char = regex[i];
+      if (char === '\\') {
+        if (!/[/.\-_:]/.test(regex[i + 1] || '')) break;
+        prefix += regex[++i]; continue;
+      }
+      if ('*?{'.includes(char)) { prefix = prefix.slice(0, -1); break; }
+      if ('.+()[|$'.includes(char)) break;
+      prefix += char;
+    }
+    return prefix;
+  }
+  // Only prove disjointness from fixed hosts/prefixes; general regex intersection is not attempted.
+  function overlaps(a, b) {
+    const left = pattern(a), right = pattern(b);
+    if (left.host !== right.host) return false;
+    const x = literalPrefix(left.regex), y = literalPrefix(right.regex);
+    return x.startsWith(y) || y.startsWith(x);
+  }
+  function profiles(input) {
+    if (!Array.isArray(input) || input.length > 20) throw new Error('最多添加 20 个 App 配置。');
+    const result = input.map(profile);
+    if (new Set(result.map(item => item.id)).size !== result.length) throw new Error('App 配置 ID 重复。');
+    for (let i = 0; i < result.length; i++) for (let j = i + 1; j < result.length; j++) {
+      for (const a of result[i].rules) for (const b of result[j].rules) {
+        if (a.name === b.name) throw new Error('不同 App 不能使用相同青龙变量名，避免互相覆盖。');
+        if (overlaps(a.url, b.url)) throw new Error('不同 App 的正则可能重叠，请使用不同域名或明确的不同路径前缀；无法证明独立时拒绝保存。');
+      }
+    }
+    return result;
+  }
+  function profileLinks(input, base) {
+    const item = profile(input), subscriptionUrl = 'https://qlpush.com/profiles/' + item.id + '.conf';
+    return { profile: item, subscriptionUrl, importUrl: importURL(subscriptionUrl, 'QP-' + item.id), conf: '# App ID: ' + item.id + '\n' + generate({ rules: item.rules }, 'https://qlpush.com/scripts/' + item.id + '.js') };
+  }
+  function captureScript(id, source) {
+    if (!/^[a-z0-9][a-z0-9-]{7,47}$/.test(id)) throw new Error('App 配置 ID 无效。');
+    return 'const QP_PROFILE_ID = ' + JSON.stringify(id) + ';\n' + source;
+  }
+  const PANEL_KEY = 'qinglong_pusher_panel_v1';
+  function panel(input, previous) {
+    exactKeys(input, ['url', 'clientId', 'clientSecret']);
+    if (typeof input.url !== 'string') throw new Error('请填写 HTTPS 青龙地址。');
+    const url = input.url.trim().replace(/\/+$/, '').replace(/\/open$/, '');
+    const match = /^https:\/\/([a-z0-9.-]+)(?::([1-9][0-9]{0,4}))?(\/[a-zA-Z0-9_/-]*)?$/.exec(url);
+    if (!match || (match[2] && +match[2] > 65535) || match[1].length > 253 || match[1].split('.').some(label => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) || match[1] === 'qlpush.com' || match[1].endsWith('.qlpush.com') || url.includes('/../') || url.length > 500) throw new Error('请使用有效 HTTPS 青龙地址，不含凭据、查询参数或控制台域名。');
+    if (typeof input.clientId !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(input.clientId)) throw new Error('请填写有效 Client ID。');
+    if (typeof input.clientSecret !== 'string') throw new Error('请填写 Client Secret。');
+    const secret = input.clientSecret || (previous && previous.url === url && previous.clientId === input.clientId ? previous.clientSecret : '');
+    if (!secret || secret.length > 512 || /[\s\x00-\x1f\x7f]/.test(secret)) throw new Error('首次配置或更改地址、Client ID 时必须填写 Client Secret。');
+    return { url, clientId: input.clientId, clientSecret: secret };
+  }
+  root.QPCore = { CONFIG_KEY, PROFILES_KEY, PANEL_KEY, panel, normalize, pattern, generate, importURL, profile, profiles, overlaps, profileLinks, captureScript };
+})(globalThis);
