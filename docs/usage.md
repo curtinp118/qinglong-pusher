@@ -121,3 +121,27 @@ PWA 在启动、回到前台、网络恢复以及前台每五分钟检查更新�
 青龙确认新增或更新完成后，通过 QX 系统通知显示应用名和变量名；同一次请求的多个变量合并提醒。值未变化、规则停用或未匹配时不提醒。批次中途失败不显示整体成功，已完成的写入不会回滚。通知不包含捕获值、Cookie 或令牌。
 
 需在 iPhone「设置 → 通知 → Quantumult X」允许通知并启用横幅；专注模式等系统设置可能抑制提醒。通知属于 QX 系统通知，不是在目标 App 内插入弹窗。更新 `capture.js` 脚本缓存后生效。
+
+通知排查：刷新控制台后查看应用同步记录。`已调用系统通知` 仅表示 `$notify` 未抛出异常，不代表 iOS 已显示横幅；`通知调用失败` 表示 API 不可用或调用异常；`通知流程未完成` 表示写入后流程尚未完成。QX 日志仅记录固定的通知状态，不包含应用配置、捕获值或凭据。
+
+## 脚本日志排查
+
+在 QX 的脚本执行日志中搜索 `[qinglong-pusher]`。每行包含 `run`（本次运行编号）、`app`（应用 ID）、`event` 和 `elapsedMs`；同一个 `run` 可以串起一次请求的全过程。日志只写到 QX 控制台，不额外落盘或上传。
+
+| 事件 / 状态 | 含义 |
+| :--- | :--- |
+| `app_selected` / `rules_matched` | 选择应用的方式、命中的启用规则数 |
+| `headers_selected` | 有可用请求头的规则数及缺失数，不输出头内容 |
+| `api_start` / `api_response` | 认证、变量查询、新增或更新阶段；HTTP 状态码、数字业务码及耗时 |
+| `variable_result` | 变量名及 `created`、`updated`、`unchanged` |
+| `skip: active_lease` | 同一应用的另一轮同步持锁，当前请求跳过；不是同步失败 |
+| `skip: missing_or_empty_headers` | 请求头缺失或为空 |
+| `skip: bound_app_missing` | 绑定的应用已删除或不存在 |
+| `notification` | 通知接口是否调用成功，不代表系统横幅已显示 |
+| `error` / `finish` | 失败阶段、固定安全错误信息、最终状态和新增/更新/不变数量 |
+
+正常顺序：`start → app_selected → rules_matched → headers_selected → lease_acquired → api_* → variable_result → notification → lease_release → finish`。
+
+值相同以 `unchanged` 结束且不发通知；部分变量成功后失败，最终为 `error`，计数保留已确认写入的数量。其他脚本的执行不在本项目可观测范围内：两个运行编号只能说明本脚本运行了两次，不能据此认定其他脚本干扰。
+
+日志不输出完整 URL、匹配正则、请求头名称和值、Cookie、Token、面板地址、认证参数、上游响应正文或异常堆栈。分享日志前仍应检查变量名是否包含个人信息。

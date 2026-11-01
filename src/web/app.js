@@ -118,7 +118,8 @@ function lastText(last) {
   if (!last) return '尚无同步记录。导入重写后，打开目标应用触发。';
   const action = { created: '已创建变量', updated: '已更新变量', unchanged: '变量无需更新', error: '同步未完成' }[last.action] || '同步记录';
   const date = new Date(last.time);
-  return action + (last.name ? ' · ' + last.name : '') + (last.message ? ' · ' + last.message : '') + (Number.isNaN(date.getTime()) ? '' : ' · ' + date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
+  const notification = { pending: '通知流程未完成', requested: '已调用系统通知（不代表横幅已显示）', failed: '通知调用失败' }[last.notification];
+  return action + (last.name ? ' · ' + last.name : '') + (notification ? ' · ' + notification : '') + (last.message ? ' · ' + last.message : '') + (Number.isNaN(date.getTime()) ? '' : ' · ' + date.toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }));
 }
 function openProfile(item) {
   if (busy || mode === 'loading') return;

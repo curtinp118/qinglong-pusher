@@ -83,23 +83,24 @@ test('JS parser header preserves optional regex groups and safely escapes commen
   assert.ok(!disabledHeader.includes('script-request-header'));
   assert.ok(!disabledHeader.includes('hostname ='));
 });
-async function capture({ staticScript = false, sourcePath, envs = [], rules = [rule], request = {}, response, initial = {} } = {}) {
+async function capture({ staticScript = false, sourcePath, notifyThrows = false, envs = [], rules = [rule], request = {}, response, initial = {} } = {}) {
   const store = prefs({ [key]: JSON.stringify([{ ...config, rules }]), [panelKey]: JSON.stringify(panelFixture), ...initial });
-  const calls = [], notifications = [];
+  const calls = [], notifications = [], logs = [];
   let count = 0;
   await new Promise((resolve, reject) => {
     try {
       vm.runInNewContext((staticScript ? '' : 'const QP_PROFILE_ID = "app-first";\n') + bundle.capture, {
         $request: { url: 'https://api.example.com/user/info', headers: { COOKIE: 'synthetic-value' }, ...request },
         $prefs: store, $environment: { sourcePath }, setTimeout, clearTimeout,
+        console: { log: message => logs.push(message) },
         $task: { fetch: async options => { calls.push(options); return response ? response(options) : { statusCode: 200, body: JSON.stringify({ code: 200, data: options.url.includes('/auth/token') ? { token: 'synthetic-access' } : options.method === 'GET' ? envs : [] }) }; } },
-        $notify: (...args) => notifications.push(args),
+        $notify: (...args) => { if (notifyThrows) throw new Error('fixture notification failure'); notifications.push(args); },
         $done: data => { count++; assert.equal(JSON.stringify(data), '{}'); resolve(); }
       });
     } catch (error) { reject(error); }
   });
   assert.equal(count, 1);
-  return { calls, store, notifications };
+  return { calls, store, notifications, logs };
 }
 test('capture creates env, preserves original request and does not persist secrets', async () => {
   const result = await capture();
@@ -338,4 +339,47 @@ test('public capture script binds an App through sourcePath and never falls back
   for (const id of ['app-deleted', '', 'invalid', 'app-second']) {
     assert.equal((await capture({ staticScript: true, sourcePath: 'https://assets.example/qx/capture.js#qp=' + id })).calls.length, 0);
   }
+});
+
+
+test('notification diagnostics distinguish API call from delivery and preserve write success on notification errors', async () => {
+  const result = await capture();
+  assert.equal(JSON.parse(result.store.values.get('qinglong_pusher_last_result_app-first')).notification, 'requested');
+  const failed = await capture({ notifyThrows: true });
+  const status = JSON.parse(failed.store.values.get('qinglong_pusher_last_result_app-first'));
+  assert.equal(status.action, 'created');
+  assert.equal(status.notification, 'failed');
+  assert.equal(failed.calls.length, 3);
+  assert.equal(failed.notifications.length, 0);
+  assert.ok(!JSON.stringify(status).includes('synthetic-value'));
+});
+
+
+test('structured logs correlate stages and redact request, panel and upstream secrets', async () => {
+  const result = await capture({ request: { url: 'https://api.example.com/user/info?secret=synthetic-query' }, rules: [{ ...rule, headerMode: 'all', header: '' }] });
+  const entries = result.logs.map(line => JSON.parse(line.replace('[qinglong-pusher] ', '')));
+  assert.equal(new Set(entries.map(entry => entry.run)).size, 1);
+  assert.equal(entries[0].event, 'start');
+  assert.equal(entries.at(-1).event, 'finish');
+  assert.equal(entries.at(-1).outcome, 'success');
+  assert.equal(entries.at(-1).created, 1);
+  assert.ok(entries.some(entry => entry.stage === 'auth' && entry.event === 'api_response'));
+  assert.ok(entries.some(entry => entry.event === 'variable_result' && entry.variable === rule.name));
+  const text = result.logs.join('\n');
+  for (const secret of ['synthetic-query', 'synthetic-value', 'synthetic-access', panelFixture.clientSecret, panelFixture.clientId, panelFixture.url, 'https://api.example.com']) assert.ok(!text.includes(secret));
+  const failure = await capture({ response: () => ({ statusCode: 403, body: JSON.stringify({ code: 403, message: 'private-upstream-value' }) }) });
+  assert.ok(!failure.logs.join('').includes('private-upstream-value'));
+  assert.ok(failure.logs.some(line => line.includes('"outcome":"error"')));
+  assert.ok(failure.logs.some(line => line.includes('"httpStatus":403')));
+});
+test('logs distinguish missing headers, duplicate request leases and unchanged values', async () => {
+  const missing = await capture({ request: { headers: {} } });
+  assert.ok(missing.logs.some(line => line.includes('missing_or_empty_headers')));
+  const locked = await capture({ initial: { 'qinglong_pusher_lease_app-first': JSON.stringify({ owner: 'another-run', until: Date.now() + 14000 }) } });
+  assert.ok(locked.logs.some(line => line.includes('active_lease')));
+  const unchanged = await capture({ envs: [{ name: rule.name, id: 1, value: 'synthetic-value' }] });
+  assert.ok(unchanged.logs.some(line => line.includes('"outcome":"unchanged"')));
+  const failedNotify = await capture({ notifyThrows: true, response: () => ({ statusCode: 403, body: '{"code":403}' }) });
+  assert.ok(failedNotify.logs.some(line => line.includes('"result":"failed"')));
+  assert.ok(failedNotify.logs.at(-1).includes('"event":"finish"'));
 });
