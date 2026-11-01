@@ -12,7 +12,7 @@
 
 **qinglong-pusher 是面向 iPhone  Quantumult X 用户 捕获指定请求头，自动同步青龙环境变量。**
 
-添加入口重写后，在 `qlpush.com` 管理青龙认证、应用规则、JS 预览与独立订阅。用户无需部署服务器、运行 Node.js 或配置 DNS；维护者只需发布静态安装文件。
+添加入口重写后，在 `qlpush.com` 管理青龙认证、应用规则、JS 预览与独立订阅。
 
 
 
