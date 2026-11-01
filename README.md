@@ -1,4 +1,4 @@
-![qinglong-pusher](assets/readme-banner.svg)
+![qinglong-pusher](https://socialify.git.ci/curtinp118/qinglong-pusher/image?custom_description=%E9%9D%92%E9%BE%99%E9%9D%A2%E6%9D%BF%E7%8E%AF%E5%A2%83%E5%8F%98%E9%87%8F%E8%87%AA%E5%8A%A8%E6%8E%A8%E9%80%81%E5%8A%A9%E6%89%8B&description=1&font=JetBrains+Mono&forks=1&issues=1&language=1&name=1&owner=1&pulls=1&stargazers=1&theme=Dark)
 
 <p align="center">
   <a href="https://github.com/crossutility/Quantumult-X"><img src="https://img.shields.io/badge/Quantumult_X-0078D4?style=for-the-badge" alt="运行环境：Quantumult X"></a>
