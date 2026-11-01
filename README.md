@@ -18,6 +18,22 @@
 
 ## 安装与使用
 
+### 前置要求：KOP-XIAO 资源解析器
+
+> [!IMPORTANT]
+> **本项目的一键导入需要使用 KOP-XIAO 资源解析器。** 应用订阅通过 `#replace=` 参数在本机生成重写规则；仅开启「资源解析器」开关，不代表已经配置了所需解析器。
+
+在 QX 主配置已有的 `[general]` 段中设置或更新此项，不要重复添加同名配置段：
+
+```ini
+resource_parser_url = https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js
+```
+
+- 不要使用 GitHub 的 `/blob/` 文件展示页地址。
+- 解析器为全局设置；若已有其他解析器，请先确认更换后不会影响其他订阅。
+- 导入本项目的应用资源时，保持「资源解析器」开启（导入链接默认携带 `opt-parser=true`）。
+- 导入后应显示目标 App 的 URL 规则与 MitM 域名；若仍出现 `qp-template.invalid`，说明模板未正确解析，请检查解析器地址、更新状态和开关。
+
 ### 1. 安装入口
 
 将以下订阅地址添加到 **Quantumult X → 重写 → 引用资源**：
@@ -28,7 +44,7 @@ https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglo
 
 启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。无需配置本地后端。应用订阅使用 GitHub 静态模板与 KOP-XIAO 解析器的 `#replace=` 参数，执行 JS 也从 GitHub 下载；控制台继续使用 HTTPS。
 
-QX 资源解析器请使用 [Raw 地址](https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js)，不要填写 GitHub 的 `/blob/` 展示页。应用导入默认开启解析器；修改 URL 后需重新导入并移除旧同名资源。
+修改应用 URL 后需重新导入并移除旧同名资源；刷新旧订阅不会读取控制台中新修改的规则。
 
 保持 QX 开启，在 iPhone Safari 中访问 **[https://qlpush.com/](https://qlpush.com/)**，进入配置页面。
 
