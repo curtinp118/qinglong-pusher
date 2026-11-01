@@ -13,6 +13,7 @@ export async function publish(baseURL, output) {
   const bundle = await assets(address);
   await mkdir(resolve(output, 'qx'), { recursive: true });
   await writeFile(resolve(output, 'qinglong-pusher.conf'), bootstrap(address));
+  await writeFile(resolve(output, 'app-template.conf'), '^https://qp-template\\.invalid/ url script-request-header ' + address + '/qx/capture.js\nhostname = qp-template.invalid\n');
   await writeFile(resolve(output, 'qx/local.js'), bundle.local);
   await writeFile(resolve(output, 'qx/capture.js'), bundle.capture);
 }

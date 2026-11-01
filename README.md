@@ -26,7 +26,9 @@
 https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglong-pusher.conf
 ```
 
-启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。无需配置本地后端。应用 JS 使用 HTTP 地址，由入口重写直接返回；控制台继续使用 HTTPS。
+启用该资源、重写与 **MitM**，并完成 QX 证书的安装与信任。无需配置本地后端。应用订阅使用 GitHub 静态模板与 KOP-XIAO 解析器的 `#replace=` 参数，执行 JS 也从 GitHub 下载；控制台继续使用 HTTPS。
+
+QX 资源解析器请使用 [Raw 地址](https://raw.githubusercontent.com/KOP-XIAO/QuantumultX/master/Scripts/resource-parser.js)，不要填写 GitHub 的 `/blob/` 展示页。应用导入默认开启解析器；修改 URL 后需重新导入并移除旧同名资源。
 
 保持 QX 开启，在 iPhone Safari 中访问 **[https://qlpush.com/](https://qlpush.com/)**，进入配置页面。
 
@@ -49,7 +51,7 @@ https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qinglo
 
 **预览不保存，关闭不保存。** 返回编辑、右上角关闭或点击遮罩只关闭预览；确认保存才更新应用配置。应用列表同时提供「导入 QX」与「删除」。
 
-删除应用会阻止后续抓取执行；仍需在 QX 移除或刷新对应重写，不会删除青龙已有变量，也不能撤回正在执行的请求。
+删除应用会阻止后续抓取执行；仍需在 QX 移除对应重写，不会删除青龙已有变量，也不能撤回正在执行的请求。
 
 
 

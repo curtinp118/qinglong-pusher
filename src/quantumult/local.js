@@ -116,7 +116,7 @@
       try { item = core.profile(body); next = core.profiles([...current.filter(other => other.id !== item.id), item]); }
       catch (error) { return send(400, { error: error.message }); }
       if (path !== '/api/preview' && !$prefs.setValueForKey(JSON.stringify(next), core.PROFILES_KEY)) return send(500, { error: 'QX 本地保存失败，未生成导入结果。' });
-      return send(200, { ...core.profileLinks(item, QP_BASE), js: core.profileScript(item, QP_CAPTURE_SOURCE), saved: path !== '/api/preview' });
+      return send(200, { ...core.profileLinks(item, QP_BASE), js: QP_CAPTURE_SOURCE, saved: path !== '/api/preview' });
     }
     return send(404, { error: '本地资源不存在。' });
   } catch (_) { return send(400, { error: '配置无效，请检查规则；本地数据不会自动覆盖。' }); }

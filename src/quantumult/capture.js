@@ -12,8 +12,12 @@
   async function run() {
     const profiles = core.profiles(JSON.parse($prefs.valueForKey(core.PROFILES_KEY) || '[]'));
     const matches = profiles.filter(item => item.rules.some(rule => rule.enabled && new RegExp(core.pattern(rule.url).regex).test($request.url || '')));
-    // Static download cannot carry a device-generated ID. Fail closed unless one App matches.
-    const config = typeof QP_PROFILE_ID !== 'undefined' ? profiles.find(item => item.id === QP_PROFILE_ID) : matches.length === 1 ? matches[0] : null;
+    const sourcePath = typeof $environment !== 'undefined' ? $environment.sourcePath || '' : '';
+    const fragment = sourcePath.split('#').slice(1).join('#');
+    const binding = /(?:^|&)qp=([^&]*)/.exec(fragment);
+    const id = typeof QP_PROFILE_ID !== 'undefined' ? QP_PROFILE_ID : binding ? binding[1] : null;
+    // A missing/deleted explicit binding must never run another App's rules.
+    const config = id !== null ? profiles.find(item => item.id === id) : matches.length === 1 ? matches[0] : null;
     if (!config) return;
     LEASE = 'qinglong_pusher_lease_' + config.id;
     STATUS = 'qinglong_pusher_last_result_' + config.id;

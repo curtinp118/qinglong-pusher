@@ -19,8 +19,8 @@ test('rejects unsafe patterns, secret fields, duplicate variables and invalid he
 });
 test('stable local subscription and separate bootstrap with request-body handling', () => {
   const data = links({ id: 'app-first', title: 'First', ...input }, 'https://assets.example');
-  assert.equal(data.subscriptionUrl, 'http://qlpush.com/scripts/app-first.js');
-  assert.deepEqual(JSON.parse(new URL(data.importUrl).searchParams.get('remote-resource')).rewrite_remote, ['http://qlpush.com/scripts/app-first.js, tag=First, opt-parser=true, enabled=true']);
+  assert.ok(data.subscriptionUrl.startsWith('https://assets.example/app-template.conf#qp=app-first&replace='));
+  assert.deepEqual(JSON.parse(new URL(data.importUrl).searchParams.get('remote-resource')).rewrite_remote, [data.subscriptionUrl + ', tag=First, opt-parser=true, enabled=true']);
   const conf = bootstrap('https://assets.example');
   const entries = conf.split('\n').filter(line => line.startsWith('^'));
   const first = entries.find(line => new RegExp(line.split(' url ')[0]).test('http://qlpush.com/scripts/app-first.js'));
@@ -60,9 +60,9 @@ test('HTTP assets, standalone bundles, preview and no persistence', async () => 
   assert.equal(response.headers.get('access-control-allow-origin'), null);
   const data = await response.json();
   assert.equal(data.preview, true);
-  assert.equal(data.js, globalThis.QPCore.profileScript(data.profile, await (await fetch(base + '/qx/capture.js')).text()));
+  assert.equal(data.js, await (await fetch(base + '/qx/capture.js')).text());
   assert.ok(!data.js.startsWith('const QP_PROFILE_ID'));
-  assert.ok(data.conf.includes('http://qlpush.com/scripts/app-first.js'));
+  assert.ok(data.conf.includes('https://assets.example/qx/capture.js#qp=app-first'));
   assert.deepEqual((await (await fetch(base + '/api/status')).json()).profiles, []);
   assert.equal((await fetch(base + '/rewrite.conf')).status, 404);
   assert.equal((await fetch(base + '/api/panel', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' })).status, 404);

@@ -122,11 +122,22 @@
     return result;
   }
   function profileLinks(input, base) {
-    const item = profile(input), subscriptionUrl = 'http://qlpush.com/scripts/' + item.id + '.js';
-    return { profile: item, subscriptionUrl, importUrl: importURL(subscriptionUrl, item.title), conf: '# App ID: ' + item.id + '\n' + generate({ rules: item.rules }, subscriptionUrl) };
+    const item = profile(input);
+    const address = (base || 'https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release').replace(/\/$/, '');
+    const scriptUrl = address + '/qx/capture.js#qp=' + item.id;
+    const enabled = item.rules.filter(rule => rule.enabled);
+    const hosts = [...new Set(enabled.map(rule => pattern(rule.url)).filter(value => value.scheme === 'https').map(value => value.host))];
+    const lines = [...new Set(enabled.map(rule => pattern(rule.url).regex))].map(regex => regex + ' url script-request-header ' + scriptUrl);
+    const conf = (lines.join('\n') || '# No enabled rules') + '\n' + (hosts.length ? 'hostname = ' + hosts.join(', ') : '# No MitM hosts') + '\n';
+    const encode = value => encodeURIComponent(value).replace(/@/g, '%40').replace(/\+/g, '%2B');
+    // KOP-XIAO decodes each replacement after splitting +/@. Escape JS replacement tokens too.
+    const replacements = [['^.* url script-request-header .*$', lines.join('\n') || '# No enabled rules'], ['^hostname = .*$', hosts.length ? 'hostname = ' + hosts.join(', ') : '# No MitM hosts']]
+      .map(([match, value]) => encode(match) + '@' + encode(value.replace(/\$/g, '$$$$'))).join('+');
+    const subscriptionUrl = address + '/app-template.conf#qp=' + item.id + '&replace=' + replacements;
+    return { profile: item, subscriptionUrl, scriptUrl, importUrl: importURL(subscriptionUrl, item.title), conf };
   }
   function profileScript(input, source) {
-    const item = profile(input), url = profileLinks(item).subscriptionUrl;
+    const item = profile(input), url = profileLinks(item).scriptUrl;
     const rules = item.rules.filter(rule => rule.enabled);
     const hosts = [...new Set(rules.map(rule => pattern(rule.url)).filter(value => value.scheme === 'https').map(value => value.host))];
     // Escape comment terminators without changing the regex matched by QX.
@@ -171,8 +182,12 @@
   async function run() {
     const profiles = core.profiles(JSON.parse($prefs.valueForKey(core.PROFILES_KEY) || '[]'));
     const matches = profiles.filter(item => item.rules.some(rule => rule.enabled && new RegExp(core.pattern(rule.url).regex).test($request.url || '')));
-    // Static download cannot carry a device-generated ID. Fail closed unless one App matches.
-    const config = typeof QP_PROFILE_ID !== 'undefined' ? profiles.find(item => item.id === QP_PROFILE_ID) : matches.length === 1 ? matches[0] : null;
+    const sourcePath = typeof $environment !== 'undefined' ? $environment.sourcePath || '' : '';
+    const fragment = sourcePath.split('#').slice(1).join('#');
+    const binding = /(?:^|&)qp=([^&]*)/.exec(fragment);
+    const id = typeof QP_PROFILE_ID !== 'undefined' ? QP_PROFILE_ID : binding ? binding[1] : null;
+    // A missing/deleted explicit binding must never run another App's rules.
+    const config = id !== null ? profiles.find(item => item.id === id) : matches.length === 1 ? matches[0] : null;
     if (!config) return;
     LEASE = 'qinglong_pusher_lease_' + config.id;
     STATUS = 'qinglong_pusher_last_result_' + config.id;

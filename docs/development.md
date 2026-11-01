@@ -7,19 +7,13 @@
 入口参考 [Script-Hub](https://github.com/Script-Hub-Org/Script-Hub)。用户只添加一份入口重写；静态托管仅用于提供首次安装与更新资源，没有运行时服务器。
 
 ```text
-静态托管：qinglong-pusher.conf + qx/local.js + qx/capture.js
-  └─ QX 拦截 https://qlpush.com
-       ├─ 页面与 API → QX preferences
-       ├─ /profiles/<app-id>.conf → 兼容旧订阅
-       └─ HTTP qlpush.com/scripts/<app-id>.js
-          → 规则头部 + 独立 App 抓取脚本
-                                      ↓
-                              直接同步青龙 Open API
+GitHub: qinglong-pusher.conf + app-template.conf + qx/local.js + qx/capture.js
+  控制台 qlpush.com → 本机配置与认证
+  导入 template.conf#replace=… → KOP-XIAO 本机解析 → 应用重写
+  执行 capture.js#qp=<id> → 读取本机指定 App → 青龙 Open API
 ```
 
-入口脚本内置页面、校验和抓取源码。应用直接导入本地 JS，资源解析器从头部 `[rewrite_local]`、`[MITM]` 提取规则；规则引用同一 JS 地址，执行代码绑定 App ID。预览与保存后的下载共用生成器，用户配置不上传。
-
-QX 自身下载订阅和 JS 是否能经过入口重写、是否发生脚本缓存或递归限制，必须用真实 iPhone 验证。当前模拟测试验证代码路由，不替代 QX 客户端兼容性证明。
+静态模板仅含保留域名 qp-template.invalid，不执行真实应用抓取。参数替换处理 @、+、换行和 JavaScript 替换字符串的 $；通过实际 KOP-XIAO 源码验证。订阅与执行 JS 下载不访问 qlpush.com。预览为原始公共脚本，应用规则单独返回。
 
 ## QX 本地路由
 
@@ -33,7 +27,7 @@ QX 自身下载订阅和 JS 是否能经过入口重写、是否发生脚本缓�
 | `POST /api/profiles` | 新建或更新单个 App |
 | `POST /api/profiles/<id>/delete` | 删除单个 App |
 | `GET /profiles/<id>.conf` | 动态独立重写 |
-| `GET /scripts/<id>.js` | 带解析器规则头部的独立 App JS；新导入使用此地址 |
+| `GET /scripts/<id>.js` | 旧入口兼容；新导入不使用此地址 |
 
 POST 需要同源 Origin、JSON Content-Type、`X-QP-Local: 1`，不开放 CORS。使用 `script-analyze-echo-response` 等待请求体，其他请求使用 `script-echo-response`。
 
@@ -95,3 +89,5 @@ npm start
 PWA 构建先根据界面源文件计算版本号，将版本注入 `pwa.js`，再为最终页面资源生成 SHA-256 清单并注入 Service Worker。安装先下载并验证所有白名单资源，验证失败不写新版缓存；安装成功后等待用户确认激活。测试覆盖错误响应、资源版本错配、离线、跨窗口刷新保护与激活超时重试。版本清单不包含 API、应用配置、认证或捕获值。
 
 参考 [Script Hub QX 入口](https://github.com/Script-Hub-Org/Script-Hub/blob/main/modules/script-hub.qx.conf)：转换资源由 `script-echo-response` 应答，不依赖本地后端。本站 HTTP JS 规则在 HTTP 跳转前匹配；认证和写入 API 只接受 HTTPS。本机路由测试不能证明 QX 自身资源下载一定经过该规则。
+
+运行真实解析器集成测试：下载上游源码到任务临时目录，然后 `QP_KOP_PARSER_PATH=<源码路径> npm run check`。默认测试离线验证替换协议，未提供路径时显式跳过实际解析器测试。不要把第三方源码或下载产物提交到仓库。

@@ -25,7 +25,7 @@ test('HTTP app resource responds directly without redirect and does not expose c
   assert.match(response.status, /200/);
   assert.equal(response.headers.Location, undefined);
   assert.equal(response.body, local('/scripts/app-first.js', { store }).body);
-  assert.ok(response.body.includes('url script-request-header http://qlpush.com/scripts/app-first.js'));
+  assert.ok(response.body.includes('url script-request-header https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qx/capture.js#qp=app-first'));
   for (const path of ['/api/status', '/api/panel', '/', '/scripts/app-first.js?x=1']) assert.match(local('http://qlpush.com' + path, { store }).status, /400/);
   assert.match(local('http://qlpush.com/scripts/app-first.js', { method: 'POST', store }).status, /405/);
   assert.match(local('http://qlpush.com.evil/scripts/app-first.js', { store }).status, /400/);
@@ -43,10 +43,11 @@ test('QX saves rules locally and fixed subscription reflects changes', () => {
   const saved = local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify(config), store });
   assert.match(saved.status, /200/);
   const source = JSON.parse(saved.body).js;
-  assert.ok(source.startsWith('/*\nFirst\n'));
-  assert.equal(local('/scripts/app-first.js', { store }).body, source);
-  assert.ok(source.includes('[rewrite_local]\n^https://api\\.example\\.com/user/.*$ url script-request-header http://qlpush.com/scripts/app-first.js'));
-  assert.ok(source.includes('[MITM]\nhostname = api.example.com'));
+  assert.equal(source, bundle.capture);
+  assert.ok(local('/scripts/app-first.js', { store }).body.includes('const QP_PROFILE_ID ='));
+  const legacy = local('/scripts/app-first.js', { store }).body;
+  assert.ok(legacy.includes('[rewrite_local]\n^https://api\\.example\\.com/user/.*$ url script-request-header https://raw.githubusercontent.com/curtinp118/qinglong-pusher/main/release/qx/capture.js#qp=app-first'));
+  assert.ok(legacy.includes('[MITM]\nhostname = api.example.com'));
   assert.doesNotThrow(() => new vm.Script(source));
   assert.deepEqual(JSON.parse(store.values.get(key)), [config]);
   assert.ok(local('/profiles/app-first.conf', { store }).body.includes('api.example.com'));
@@ -66,12 +67,13 @@ test('JS parser header preserves optional regex groups and safely escapes commen
   const item = { ...config, title: 'Metro */ App', rules: [{ ...rule, url: regex }] };
   const store = prefs();
   const saved = JSON.parse(local('/api/profiles', { method: 'POST', headers: saveHeaders, body: JSON.stringify(item), store }).body);
-  assert.equal(saved.subscriptionUrl, 'http://qlpush.com/scripts/app-first.js');
+  assert.ok(saved.subscriptionUrl.startsWith('https://assets.example/app-template.conf#qp=app-first&replace='));
   const resource = JSON.parse(new URL(saved.importUrl).searchParams.get('remote-resource')).rewrite_remote[0];
   assert.equal(resource, saved.subscriptionUrl + ', tag=Metro */ App, opt-parser=true, enabled=true');
-  assert.equal(saved.js, local('/scripts/app-first.js', { store }).body);
+  assert.equal(saved.js, bundle.capture);
   assert.doesNotThrow(() => new vm.Script(saved.js));
-  const header = saved.js.slice(0, saved.js.indexOf('*/'));
+  const legacy = local('/scripts/app-first.js', { store }).body;
+  const header = legacy.slice(0, legacy.indexOf('*/'));
   const extracted = header.split('\n').find(line => line.includes(' url script-request-header ')).split(' url ')[0];
   for (const url of ['https://api.example.com/user/x/sign-in', 'https://api.example.com/user/x/sign-in-day?x=1', 'https://api.example.com/no']) {
     assert.equal(new RegExp(extracted).test(url), new RegExp(regex).test(url));
@@ -81,7 +83,7 @@ test('JS parser header preserves optional regex groups and safely escapes commen
   assert.ok(!disabledHeader.includes('script-request-header'));
   assert.ok(!disabledHeader.includes('hostname ='));
 });
-async function capture({ staticScript = false, envs = [], rules = [rule], request = {}, response, initial = {} } = {}) {
+async function capture({ staticScript = false, sourcePath, envs = [], rules = [rule], request = {}, response, initial = {} } = {}) {
   const store = prefs({ [key]: JSON.stringify([{ ...config, rules }]), [panelKey]: JSON.stringify(panelFixture), ...initial });
   const calls = [], notifications = [];
   let count = 0;
@@ -89,7 +91,7 @@ async function capture({ staticScript = false, envs = [], rules = [rule], reques
     try {
       vm.runInNewContext((staticScript ? '' : 'const QP_PROFILE_ID = "app-first";\n') + bundle.capture, {
         $request: { url: 'https://api.example.com/user/info', headers: { COOKIE: 'synthetic-value' }, ...request },
-        $prefs: store, setTimeout, clearTimeout,
+        $prefs: store, $environment: { sourcePath }, setTimeout, clearTimeout,
         $task: { fetch: async options => { calls.push(options); return response ? response(options) : { statusCode: 200, body: JSON.stringify({ code: 200, data: options.url.includes('/auth/token') ? { token: 'synthetic-access' } : options.method === 'GET' ? envs : [] }) }; } },
         $notify: (...args) => notifications.push(args),
         $done: data => { count++; assert.equal(JSON.stringify(data), '{}'); resolve(); }
@@ -176,7 +178,7 @@ test('two App profiles have isolated subscriptions, edits, deletes and capture s
   assert.notEqual(firstResult.importUrl, secondResult.importUrl);
   const secondConf = local('/profiles/app-second.conf', { store }).body;
   const secondJS = local('/scripts/app-second.js', { store }).body;
-  assert.ok(secondConf.includes('http://qlpush.com/scripts/app-second.js'));
+  assert.ok(secondConf.includes('https://assets.example/qx/capture.js#qp=app-second'));
   assert.ok(!secondConf.includes('api.example.com'));
   save({ ...config, title: 'Renamed', rules: [{ ...rule, enabled: false }] });
   assert.equal(local('/profiles/app-second.conf', { store }).body, secondConf);
@@ -247,7 +249,7 @@ test('draft preview generates JS without creating or updating saved profiles', (
   assert.match(result.status, /200/);
   assert.equal(JSON.parse(result.body).saved, false);
   assert.equal(JSON.parse(result.body).profile.title, 'Unsaved title');
-  assert.ok(JSON.parse(result.body).js.startsWith('/*\nUnsaved title\n'));
+  assert.equal(JSON.parse(result.body).js, bundle.capture);
   assert.notEqual(JSON.parse(result.body).js, local('/scripts/app-first.js', { store }).body);
   assert.equal(JSON.stringify([...store.values]), before);
   const fresh = prefs();
@@ -314,4 +316,11 @@ test('published static capture selects the matching App and keeps independent st
   assert.equal(removed.calls.length, 0);
   const disabled = await capture({ staticScript: true, rules: [{ ...rule, enabled: false }] });
   assert.equal(disabled.calls.length, 0);
+});
+
+test('public capture script binds an App through sourcePath and never falls back for an invalid binding', async () => {
+  assert.equal((await capture({ staticScript: true, sourcePath: 'https://assets.example/qx/capture.js#qp=app-first' })).calls.length, 3);
+  for (const id of ['app-deleted', '', 'invalid', 'app-second']) {
+    assert.equal((await capture({ staticScript: true, sourcePath: 'https://assets.example/qx/capture.js#qp=' + id })).calls.length, 0);
+  }
 });

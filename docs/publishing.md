@@ -29,15 +29,16 @@ npm run build -- https://raw.githubusercontent.com/curtinp118/qinglong-pusher/ma
 ```text
 release/
   qinglong-pusher.conf
+  app-template.conf
   qx/local.js
   qx/capture.js
 ```
 
-把三个文件按此目录结构上传到所指定的地址，用户只添加其中的 `qinglong-pusher.conf`。入口文件已引用完整静态脚本 URL，不需要后端 API 或动态路由。可传第二个参数指定输出目录；`release/` 纳入版本控制；审核后使用 `git add release/qinglong-pusher.conf release/qx/local.js release/qx/capture.js` 添加三个文件，发布到 `main` 分支。每次修改页面、共享逻辑或 QX 脚本后，都应重新构建并同步提交发布文件。不要上传调试文件或凭据。
+把四个文件按此目录结构上传到所指定的地址，用户只添加其中的 `qinglong-pusher.conf`。入口文件已引用完整静态脚本 URL，不需要后端 API 或动态路由。可传第二个参数指定输出目录；`release/` 纳入版本控制；审核后使用 `git add release/app-template.conf release/qinglong-pusher.conf release/qx/local.js release/qx/capture.js` 添加四个文件，发布到 `main` 分支。每次修改页面、共享逻辑或 QX 脚本后，都应重新构建并同步提交发布文件。不要上传调试文件或凭据。
 
-默认分支为 `main`，用户直接订阅仓库中的发布文件。发布后检查 `.conf`、`qx/local.js`、`qx/capture.js` 三个 Raw 地址均可下载。构建不会配置 Git remote，也不会自动上传、提交或推送。
+默认分支为 `main`，用户直接订阅仓库中的发布文件。发布后检查 `qinglong-pusher.conf`、`app-template.conf`、`qx/local.js`、`qx/capture.js` 四个 Raw 地址均可下载。构建不会配置 Git remote，也不会自动上传、提交或推送。
 
-页面更新后重新打包并上传静态脚本，用户刷新入口资源及其脚本缓存。入口需保持启用；各 App 订阅和抓取 JS 依赖它在本机响应。
+页面更新后重新打包并上传静态脚本，用户刷新入口资源及其脚本缓存。入口需保持启用；各 App 订阅模板和抓取 JS 直接从 GitHub 下载，配置读取仍由本机 QX 处理。
 
 ## 开发预览
 
@@ -49,4 +50,4 @@ npm start
 
 `HOST`、`PORT`、`PUBLIC_BASE_URL` 只影响开发预览服务。默认 `127.0.0.1:8787`，公共 origin 默认 `http://localhost:8787`；不支持子路径。通过与所设 origin 一致的地址打开页面，避免同源保护拒绝请求。
 
-应用 JS 使用 `http://qlpush.com/scripts/<id>.js`，由专用 `script-echo-response` 规则直接返回，不重定向到 HTTPS。页面和认证 API 仍使用 HTTPS。更新入口及脚本缓存后重新导入应用，删除旧的 loopback 应用引用和本项目的后端配置行。仅删除本项目的后端条目，不影响其他服务。PWA 更新不代替 QX 脚本更新。
+新应用导入使用 `app-template.conf#qp=…&replace=…`，须先发布模板与 capture.js。使用 KOP-XIAO Raw 解析器；不要覆盖用户的全局解析器配置。发布后更新入口与执行脚本缓存，重新导入应用并移除旧资源。
