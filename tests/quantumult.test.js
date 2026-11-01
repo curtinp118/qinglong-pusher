@@ -167,6 +167,21 @@ test('capture handles multiple mappings and rejects non-HTTPS panel', async () =
   assert.equal(result.calls.length, 5);
   assert.equal((await capture({ initial: { [panelKey]: JSON.stringify({ ...panelFixture, url: 'http://panel.example' }) } })).calls.length, 0);
 });
+test('successful writes notify once with names only; unchanged and failed batches never report success', async () => {
+  assert.deepEqual((await capture()).notifications, [['qinglong-pusher', 'First · 推送成功', '新增：TEST_ENV']]);
+  const updated = await capture({ envs: [{ name: rule.name, id: 1, value: 'old' }] });
+  assert.deepEqual(updated.notifications, [['qinglong-pusher', 'First · 推送成功', '更新：TEST_ENV']]);
+  const batch = await capture({ rules: [rule, { ...rule, name: 'OTHER_ENV' }] });
+  assert.deepEqual(batch.notifications, [['qinglong-pusher', 'First · 推送成功', '新增：TEST_ENV\n新增：OTHER_ENV']]);
+  for (const options of [{ envs: [{ name: rule.name, id: 1, value: 'synthetic-value' }] }, { rules: [{ ...rule, enabled: false }] }, { request: { headers: {} } }]) {
+    assert.equal((await capture(options)).notifications.length, 0);
+  }
+  const partial = await capture({ rules: [rule, { ...rule, name: 'OTHER_ENV' }], response: options => ({ statusCode: 200, body: JSON.stringify({ code: options.url.includes('OTHER_ENV') ? 403 : 200, data: options.url.includes('/auth/token') ? { token: 'synthetic-access' } : [] }) }) });
+  assert.equal(partial.calls.filter(call => call.method === 'POST').length, 1);
+  assert.equal(partial.notifications.length, 1);
+  assert.equal(partial.notifications[0][1], '同步未完成');
+  assert.ok(!JSON.stringify(batch.notifications).includes('synthetic-value'));
+});
 
 test('two App profiles have isolated subscriptions, edits, deletes and capture state', async () => {
   const store = prefs();

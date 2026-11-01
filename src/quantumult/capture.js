@@ -63,6 +63,7 @@
     }
     const auth = await api('GET', '/auth/token?client_id=' + encodeURIComponent(credentials.clientId) + '&client_secret=' + encodeURIComponent(credentials.clientSecret));
     if (!auth || typeof auth.token !== 'string' || !auth.token) throw new SafeError('青龙未返回有效令牌。');
+    const written = [];
     for (const { rule, value } of values) {
       const envs = await api('GET', '/envs?searchValue=' + encodeURIComponent(rule.name), auth.token);
       if (!Array.isArray(envs)) throw new SafeError('青龙变量列表格式无效。');
@@ -80,8 +81,14 @@
         }
         await api(env ? 'PUT' : 'POST', '/envs', auth.token, env ? payload : [payload]);
         action = env ? 'updated' : 'created';
+        written.push((env ? '更新：' : '新增：') + rule.name);
       }
       $prefs.setValueForKey(JSON.stringify({ name: rule.name, action, time: new Date().toISOString() }), STATUS);
+    }
+    if (written.length) {
+      // Notify once only after the whole batch succeeds; never include captured values.
+      try { $notify('qinglong-pusher', config.title + ' · 推送成功', written.join('\n')); }
+      catch (_) { /* Notification failure must not turn a confirmed write into an error. */ }
     }
   }
   const work = run().catch(error => {
